@@ -10,6 +10,7 @@ import { connectionOf, isTextOnly, mainConnection, presetKey, type SaveIssue } f
 import ProviderFields from './ProviderFields'
 import ModelPicker from './ModelPicker'
 import api from '../../services/api'
+import SpeakerTranscription from './SpeakerTranscription'
 
 type SenseVoiceStatus = { status: 'not_installed' | 'installing' | 'ready' | 'error'; message: string }
 
@@ -119,7 +120,11 @@ function TranscriptionSection({ m }: { m: ModelSettingsStore }) {
         <ModelPicker role="transcription" model={settings.transcription?.model || ''} connection={connection} list={lists[connection.id]} busy={!!busy[connection.id]} listError={listErrors[connection.id]} mode={settings.analysis_mode}
           onChange={model => m.update({ transcription: { provider: 'cloud', connection_id: connection.id, model } })} onRefresh={() => void m.discover(connection, true)} />
       </Row>
-    </> : sensevoice ? <SenseVoiceConfig /> : <SpeechRecognitionConfig hideProvider selectedModel={settings.transcription?.model || 'base'} onModelChange={m.setTranscriptionLocal} />}
+    </> : settings.transcription?.speaker_diarization ? <Row label={t('转写模型')}><span>{sensevoice ? 'SenseVoiceSmall' : 'Whisper medium · CPU int8'}</span></Row>
+      : sensevoice ? <SenseVoiceConfig /> : <SpeechRecognitionConfig hideProvider selectedModel={settings.transcription?.model || 'base'} onModelChange={m.setTranscriptionLocal} />}
+    {!cloud && <SpeakerTranscription enabled={!!settings.transcription?.speaker_diarization} prompt={settings.transcription?.initial_prompt || ''}
+      onChange={changes => m.update({ transcription: { provider: sensevoice ? 'sensevoice_local' : 'whisper_local',
+        ...settings.transcription, model: sensevoice ? 'SenseVoiceSmall' : 'medium', ...changes } })}/>}
   </div>
 }
 

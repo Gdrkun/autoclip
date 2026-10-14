@@ -86,6 +86,8 @@ class Transcription(BaseModel):
     provider: Literal['whisper_local', 'sensevoice_local', 'cloud'] = 'whisper_local'
     model: str = Field(default='base', min_length=1, max_length=200)
     connection_id: str | None = None
+    speaker_diarization: bool = Field(default=False, exclude_if=lambda value: not value)
+    initial_prompt: str = Field(default='', max_length=500, exclude_if=lambda value: not value)
 
     @model_validator(mode='after')
     def valid_selection(self):

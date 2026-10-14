@@ -88,18 +88,21 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
         raise ValueError('无法读取原视频尺寸')
     w, h = int(w) // 2 * 2, int(h) // 2 * 2
     warnings = []
+    speaker_mode = bool(draft.subtitles and draft.speaker_subtitles)
+    if speaker_mode and draft.language != 'source':
+        raise ValueError('说话人字幕暂时只支持原语言')
     draft = recover_empty_packaging(project_id, draft, warnings)
     keep_audio = draft.original_audio and audio.has_audio(video)
     if draft.original_audio and not keep_audio:
         warnings.append('原素材没有音轨，本次导出无声')
-    packaged = draft.packaging is not None
+    packaged = draft.packaging is not None and not speaker_mode
     # Template packaging carries its own captions and title; the legacy subtitle/title path stays off.
-    entries = _load_srt_entries(project_id) if draft.subtitles and not packaged else []
+    entries = _load_srt_entries(project_id) if draft.subtitles and not packaged and not speaker_mode else []
     # Only transmit the subtitle rows used by this draft, never unrelated transcript text.
     from backend.pipeline.quality import to_seconds
     entries = [e.copy() for e in entries if any(to_seconds(e['start_time']) < s.end and to_seconds(e['end_time']) > s.start for s in draft.scenes)]
     hook = '' if packaged else draft.hook
-    if draft.language != 'source' and (hook or entries) and _needs_translation(draft.language, hook, entries):
+    if not speaker_mode and draft.language != 'source' and (hook or entries) and _needs_translation(draft.language, hook, entries):
         translated = text_json('将 title 和 subtitles 翻译成指定语言；保持 subtitles 的数量与顺序，不添加事实。返回 {"title":"...","subtitles":["..."]}。', {'language': draft.language, 'title': hook, 'subtitles': [e.get('text', '') for e in entries]})
         rows = translated.get('subtitles', [])
         if len(rows) != len(entries) or not all(isinstance(t, str) for t in rows) or not isinstance(translated.get('title'), str):
@@ -112,13 +115,13 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
     font = resolve_cjk_font()
     if hook and draft.title_style not in title_art.STYLES and not font:
         raise ValueError('缺少中文字体，无法烧录开头文字，请安装 Noto Sans CJK')
-    if draft.subtitles and not entries and not packaged:
+    if draft.subtitles and not entries and not packaged and not speaker_mode:
         warnings.append('原素材没有可用字幕，本次未烧录字幕')
     project_cancellation.checkpoint(project_id)
     overlay_path = None
     overlay_grade = ''
     overlay_job = None
-    if html_template in ('editorial', 'street'):
+    if html_template in ('editorial', 'street') and not speaker_mode:
         from backend.services.studio import packaging_html
         from backend.services.studio.templates.registry import TemplateRegistryError, get
         try:
@@ -178,6 +181,17 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
                             built = packaging_render.scene_video_graph(draft, scene, i, ass_path, w, h)
                         else:
                             built = _build_filter(req, spec, srt if body else None, title if hook and i == 0 and draft.title_style == 'plain' else None, font, draft.subtitle_style)
+                        if speaker_mode:
+                            from backend.services.speaker_ass import scene_ass
+                            from backend.services.publish_export import _escape_filter_path
+                            speaker_path = folder / f'speakers-{i}.ass'
+                            speaker_document = draft.speaker_subtitles
+                            if not draft.speaker_colors:
+                                speaker_document = speaker_document.model_copy(update={'speakers': [s.model_copy(update={'color': '#FFFFFF'}) for s in speaker_document.speakers]})
+                            speaker_path.write_text(scene_ass(speaker_document, scene, w, h, draft.subtitle_style), encoding='utf-8')
+                            graph, label = built
+                            source_label = label.strip('[]') if label else '0:v'
+                            built = ((graph + ';' if graph else '') + f"[{source_label}]ass=filename='{_escape_filter_path(speaker_path)}'[speakersub]", 'speakersub')
                         clip_path = folder / f'{i}.mkv'
                         artwork = None
                         backdrop = None

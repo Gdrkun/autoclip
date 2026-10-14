@@ -14,6 +14,7 @@ function loadSection() {
     '../../i18n': { t: s => s },
     '../../ui': { Btn: 'Btn', Row: 'Row', Section: 'Section', Segmented: 'Segmented', StatusDot: 'StatusDot' },
     '../../components/SpeechRecognitionConfig': { default: 'WhisperConfig' },
+    './SpeakerTranscription': { default: 'SpeakerTranscription' },
     './providers': { PROVIDERS: {}, providerPickerOptions: () => [] },
     './useModelSettings': {},
     './modelSettingsLogic': { connectionOf: () => undefined, mainConnection: () => undefined },

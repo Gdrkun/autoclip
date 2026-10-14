@@ -572,6 +572,12 @@ def write(project_id, data, *, _recover_previous=True):
         raise FileNotFoundError('项目目录不存在')
     path = root / 'metadata' / 'studio.json'
     path.parent.mkdir(parents=True, exist_ok=True)
+    from backend.services.speaker_integration import load_document
+    speaker_document = load_document(project_id)
+    if speaker_document:
+        for draft in data.get('drafts', []):
+            if not draft.get('speaker_subtitles') and draft.get('speaker_colors', True):
+                draft['speaker_subtitles'] = speaker_document.model_dump()
     # Preserve content-free execution receipts in the same atomic write as business state.
     # Re-screening must not destroy an unobserved production terminal.
     previous = read(project_id, recover=_recover_previous) if path.exists() else {}

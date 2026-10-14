@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, Q
 from fastapi.responses import FileResponse, Response
 from starlette.background import BackgroundTask
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
 from backend.core.database import get_db
 from backend.core.sentry_setup import capture_studio_exception
 from backend.models.project import Project
@@ -19,6 +20,48 @@ from backend.services.studio import store, jobs, intelligence
 from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, ExportDraftRequest, RewriteRequest, Preferences, Language, Scene, ImportOptions, ConfirmPlan, AppendPlatformsRequest, PostCopy
 
 router = APIRouter()
+
+
+class SpeakerRequest(BaseModel):
+    backend: Literal['whisper', 'sensevoice'] = 'whisper'
+    prompt: str = Field(default='', max_length=500)
+    reuse_subtitles: bool = True
+
+
+@router.get('/speaker-subtitles/status')
+def speaker_runtime_status():
+    from backend.services.speaker_integration import status
+    return status()
+
+
+@router.post('/{project_id}/speaker-subtitles')
+def recognize_speaker_subtitles(project_id: str, body: SpeakerRequest, db: Session = Depends(get_db)):
+    from backend.services.speaker_integration import start
+    project_or_404(project_id, db)
+    return call(start, project_id, body.backend, body.prompt, body.reuse_subtitles)
+
+
+@router.get('/{project_id}/speaker-subtitles')
+def speaker_subtitle_state(project_id: str, db: Session = Depends(get_db)):
+    from backend.services.speaker_integration import job_state, load_document
+    project_or_404(project_id, db)
+    document = call(load_document, project_id)
+    return {'job': call(job_state, project_id), 'document': document.model_dump() if document else None}
+
+
+@router.get('/{project_id}/drafts/{draft_id}/speaker-subtitles.ass')
+def export_speaker_ass(project_id: str, draft_id: str, db: Session = Depends(get_db)):
+    from backend.services.speaker_ass import draft_ass
+    project_or_404(project_id, db)
+    saved = next((d for d in store.read(project_id)['drafts'] if d['id'] == draft_id), None)
+    if not saved:
+        raise HTTPException(404, '草稿不存在或已移除')
+    draft = Draft.model_validate(saved)
+    if not draft.speaker_subtitles:
+        raise HTTPException(422, '请先识别说话人字幕')
+    return Response(draft_ass(draft.speaker_subtitles, draft.scenes, style=draft.subtitle_style),
+                    media_type='text/plain; charset=utf-8',
+                    headers={'Content-Disposition': 'attachment; filename="speaker-subtitles.ass"'})
 
 
 def project_or_404(project_id: str, db: Session):

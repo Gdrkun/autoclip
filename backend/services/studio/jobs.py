@@ -32,6 +32,8 @@ def source(project_id):
     return find_source_video(project_id)
 
 def export(project_id, draft, *, brand_outro=False, _variant_identity=None, html_template=None, html_fallback=None, safe_area='xiaohongshu', requested_template=None):
+    from backend.services.speaker_integration import hydrate
+    draft = hydrate(project_id, draft)
     from backend.services.output_branding import load_settings
     brand_outro = bool(brand_outro and load_settings().enabled)
     from backend.services.studio.template_choice import recorded_style
