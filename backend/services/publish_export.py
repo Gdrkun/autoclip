@@ -54,7 +54,7 @@ def list_presets() -> List[Dict[str, Any]]:
 def find_source_video(project_id: str) -> Path:
     from backend.core.path_utils import get_project_directory
     raw = get_project_directory(project_id) / "raw"
-    for p in [raw / "input.mp4", raw / "input.mov", raw / "input.mkv", raw / "input.webm"]:
+    for p in [raw / "input.mp4", raw / "input.mov", raw / "input.mkv", raw / "input.webm", raw / "input.avi", raw / "input.flv"]:
         if p.exists():
             return p
     vids = sorted(raw.glob("input.*"))

@@ -44,7 +44,7 @@ def start(source: str, platforms: list[str], *, name: str | None = None, srt_pat
         video = Path(source).expanduser().resolve()
         if not video.is_file():
             raise FileNotFoundError(f'视频不存在: {video}')
-        if video.suffix.lower() not in ('.mp4', '.mov', '.mkv', '.webm', '.avi'):
+        if video.suffix.lower() not in ('.mp4', '.mov', '.mkv', '.webm', '.avi', '.flv'):
             raise ValueError('不支持的视频格式')
     subtitle = Path(srt_path).expanduser().resolve() if srt_path else None
     if subtitle and (not subtitle.is_file() or not 0 < subtitle.stat().st_size <= 2 * 1024 * 1024):

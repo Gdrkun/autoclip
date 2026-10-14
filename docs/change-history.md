@@ -46,3 +46,13 @@
 - 本次变更：重启本次开发 API，追加 http://127.0.0.1:13001 和 http://localhost:13001；补充同会话启动配置及代理原因说明，保留默认守卫和其他来源配置。
 - 影响范围：本地开发 API 进程环境、docs/SPEAKER_SUBTITLES_INTEGRATION.md；应用代码、既有 .env、用户数据、Redis/Worker 和其他项目前端未修改。
 - 验证方式：修复前带 13001 Origin 的隔离不存在项目 POST 为 403、无 Origin 为 404；修复后本机两种来源均进入项目校验返回预期 404 且 CORS 来源头正确，无 Origin 保持 404，其他网页仍 403。实际设置 discover 路由使用 connection=null 验证本机来源进入 Pydantic 校验返回 422、其他来源 403；没有创建项目、写设置或调用外部/付费服务。原 .env SHA-256 前后相同。私有 origin-guard-report.json 保留证据；本次只调整启动环境及文档，未重跑全套源码门禁或安装包验收，不宣称外部供应商已连通。
+
+
+## 2026-10-14 17:28
+
+- 类型：修复。
+- 涉及功能：AutoClip 本地 FLV 视频导入、源文件定位与兼容预览/成片。
+- 原功能：前端选择器与 Studio/旧上传/命令行格式白名单未列入 FLV；旧上传统一使用 input.mp4 文件名，源视频匹配也未明确优先 FLV。
+- 本次变更：前端 accept 与格式提示加入 FLV，三处导入校验放行大小写 FLV，旧上传保留 FLV 扩展名；源视频优先定位已支持的 AVI/FLV，避免字幕文件被当作视频。继续使用原 FFmpeg 音频、兼容预览和 MP4 输出链路，补充定向回归与使用说明。
+- 影响范围：frontend/src/features/studio/CreativeImport.tsx、frontend/tests/quick-output-import.test.cjs、backend/api/v1/studio.py、backend/api/v1/projects.py、backend/services/quick_output_runner.py、backend/services/publish_export.py、backend/tests/test_flv_import.py、docs/SPEAKER_SUBTITLES_INTEGRATION.md；未改模型、现有 .env、用户项目、Redis/Worker 或其他服务。
+- 验证方式：修复前前端 FLV 选取回归失败，Studio 两种扩展名上传均返回 422 格式不支持；修复后 FLV/原兼容预览共 12 passed，无 skip。用户此前 FLV 隔离实测 2 passed，包含上传原样保存、音轨、H.264/AAC 兼容预览、16kHz 音频提取、MP4 导出全解码；Edge 实际选择成功，阻断所有 API POST 防止自动模型调用；正常 API 的空 FLV 已进入空文件校验。后端正确性 lint、完整 frontend 门禁（lint/types/291 tests/build）通过，构建未上传 sourcemap；.env 哈希未变。旧命令行相关测试 20 passed/2 failed，Windows 路径断言与跨盘 ZIP 在未修改 HEAD 基线同样失败，私有证据保留；全量后端及桌面安装包验收未通过/未重跑，不作发布验收声明。未调用外部付费服务、未提交或发布。

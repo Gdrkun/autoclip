@@ -51,7 +51,7 @@ async def upload_files(
     """Upload video file and optional subtitle file to create a new project. If no subtitle is provided, Whisper will automatically generate one."""
     try:
         # 验证视频文件类型
-        if not video_file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm')):
+        if not video_file.filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv')):
             raise HTTPException(status_code=400, detail="Invalid video file format")
         
         # 验证字幕文件类型（如果提供）
@@ -83,7 +83,7 @@ async def upload_files(
         raw_dir = get_project_raw_directory(project_id)
         
         # 保存视频文件
-        video_path = raw_dir / "input.mp4"
+        video_path = raw_dir / ("input.flv" if Path(video_file.filename).suffix.lower() == ".flv" else "input.mp4")
         with open(video_path, "wb") as f:
             content = await video_file.read()
             f.write(content)

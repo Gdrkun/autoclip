@@ -17,10 +17,10 @@ function load(mocks){
 }
 function nodes(value){return !value||typeof value!=='object'?[]:Array.isArray(value)?value.flatMap(nodes):[value,...nodes(value.props?.children)]}
 
-test('quick import submits platform targets, branding and auto-starts to results',async()=>{
+for (const sourceKind of ['link', 'file']) test(`quick ${sourceKind} import submits platform targets, branding and auto-starts to results`,async()=>{
  const calls=[],navigations=[];let index=0
  const ready={analysis_mode:'auto',ready:true,checks:{analysis:{ok:true,code:'configured',repair:'none'},transcription:{ok:true,code:'whisper_installed',repair:'none'},visual:{ok:true,code:'optional',repair:'none'},ffmpeg:{ok:true,code:'available',repair:'none'}}}
- const states=[['link',()=>{}],['https://youtube.com/watch?v=video',()=>{}],[null,()=>{}],[null,()=>{}],[{goal:'auto',language:'source',aspect:null,duration:null,instruction:''},()=>{}],['',()=>{}],[['douyin'],()=>{}],[false,()=>{}],[false,()=>{}],['',()=>{}],[ready,()=>{}],[true,()=>{}],[false,()=>{}]]
+ const states=[[sourceKind,()=>{}],['https://youtube.com/watch?v=video',()=>{}],[sourceKind==='file'?{name:'recording.FLV',size:1024,lastModified:1}:null,()=>{}],[null,()=>{}],[{goal:'auto',language:'source',aspect:null,duration:null,instruction:''},()=>{}],['',()=>{}],[['douyin'],()=>{}],[false,()=>{}],[false,()=>{}],['',()=>{}],[ready,()=>{}],[true,()=>{}],[false,()=>{}]]
  const component=load({
   'react-i18next':{useTranslation:()=>{}},'../../i18n':{t:x=>x},
   react:{useState:()=>states[index++],useEffect:()=>{},useRef:current=>({current})},antd:{Select:'select'},'react-router-dom':{useNavigate:()=>path=>navigations.push(path)},
@@ -43,6 +43,12 @@ test('quick import submits platform targets, branding and auto-starts to results
  assert.equal(calls[0].get('portrait_style'),'auto')
  assert.equal(calls[0].get('brand_outro_enabled'),undefined, 'the backend uses the saved application setting')
  assert.deepEqual(navigations,['/project/project-1'])
+ if(sourceKind==='file'){
+  const input=tree.find(node=>node.type==='input'&&node.props?.['aria-label']==='视频文件')
+  assert.ok(input.props.accept.split(',').includes('.flv'), 'file chooser must expose FLV')
+  assert.equal(calls[0].get('name'),'recording')
+  assert.equal(calls[0].get('url'),undefined)
+ }
 })
 
 test('quick import source no longer tells users to confirm a plan',()=>{
