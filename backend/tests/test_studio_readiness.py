@@ -239,3 +239,45 @@ def test_completed_download_flips_readiness_immediately(monkeypatch, isolated):
             'ok': True, 'code': 'whisper_installed', 'repair': 'none'}
     finally:
         manager._download_state.pop('small', None)
+
+
+@pytest.mark.parametrize('provider,key', [('sensevoice_local', 'sensevoice'), ('whisper_local', 'whisper')])
+@pytest.mark.parametrize('available', [True, False])
+def test_speaker_transcription_checks_the_selected_isolated_runtime(monkeypatch, provider, key, available):
+    from backend.services import speaker_integration
+    def forbidden(*args, **kwargs):
+        pytest.fail('speaker transcription must not probe legacy runtimes or the network')
+    monkeypatch.setattr('backend.services.whisper_runtime.get_status', forbidden)
+    monkeypatch.setattr('backend.services.sensevoice_runtime.status', forbidden)
+    monkeypatch.setattr('urllib.request.urlopen', forbidden)
+    state = {'ready': True, 'sensevoice': not available, 'whisper': not available}
+    state[key] = available
+    monkeypatch.setattr(speaker_integration, 'status', lambda: state)
+    result = report_for(monkeypatch, document(transcription=Transcription(
+        provider=provider, model='SenseVoiceSmall' if key == 'sensevoice' else 'medium', speaker_diarization=True)))
+    assert result['checks']['transcription'] == {
+        'ok': available, 'code': 'speaker_ready' if available else 'speaker_not_ready',
+        'repair': 'none' if available else 'settings_transcription'}
+
+
+def test_cloud_transcription_with_speaker_flag_keeps_the_cloud_route(monkeypatch):
+    from backend.services import speaker_integration
+    monkeypatch.setattr(speaker_integration, 'status', lambda: pytest.fail('cloud must not probe speaker runtime'))
+    result = report_for(monkeypatch, document(transcription=Transcription(
+        provider='cloud', model='whisper-1', connection_id='ai', speaker_diarization=True)))
+    assert result['checks']['transcription'] == {'ok': True, 'code': 'cloud_configured', 'repair': 'none'}
+
+
+def test_http_import_readiness_uses_saved_speaker_selection(isolated, monkeypatch):
+    from backend.services import ai_model_settings as ai, speaker_integration
+    from backend.api.v1.studio import router
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    ai.path().write_text(document(transcription=Transcription(
+        provider='sensevoice_local', model='SenseVoiceSmall', speaker_diarization=True)).model_dump_json(), encoding='utf-8')
+    monkeypatch.setattr(speaker_integration, 'status', lambda: {'ready': True, 'sensevoice': True, 'whisper': False})
+    app = FastAPI()
+    app.include_router(router, prefix='/studio')
+    result = TestClient(app).get('/studio/readiness')
+    assert result.status_code == 200
+    assert result.json()['checks']['transcription'] == {'ok': True, 'code': 'speaker_ready', 'repair': 'none'}

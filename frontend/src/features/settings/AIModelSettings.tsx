@@ -122,7 +122,7 @@ function TranscriptionSection({ m }: { m: ModelSettingsStore }) {
       </Row>
     </> : settings.transcription?.speaker_diarization ? <Row label={t('转写模型')}><span>{sensevoice ? 'SenseVoiceSmall' : 'Whisper medium · CPU int8'}</span></Row>
       : sensevoice ? <SenseVoiceConfig /> : <SpeechRecognitionConfig hideProvider selectedModel={settings.transcription?.model || 'base'} onModelChange={m.setTranscriptionLocal} />}
-    {!cloud && <SpeakerTranscription enabled={!!settings.transcription?.speaker_diarization} prompt={settings.transcription?.initial_prompt || ''}
+    {!cloud && <SpeakerTranscription provider={sensevoice ? 'sensevoice_local' : 'whisper_local'} enabled={!!settings.transcription?.speaker_diarization} prompt={settings.transcription?.initial_prompt || ''}
       onChange={changes => m.update({ transcription: { provider: sensevoice ? 'sensevoice_local' : 'whisper_local',
         ...settings.transcription, model: sensevoice ? 'SenseVoiceSmall' : 'medium', ...changes } })}/>}
   </div>

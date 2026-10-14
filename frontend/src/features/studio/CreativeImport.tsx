@@ -20,6 +20,7 @@ import './studio.css'
 import './quick-output.css'
 
 function issueCopy(item: ReadinessIssue) {
+  if (item.code === 'speaker_not_ready') return t('本地说话人模型未就绪')
   if (item.key === 'analysis') return t('分析模型还没配好。连接一家 AI 服务后再生成。')
   if (item.code === 'whisper_installing') return t('正在安装本地转写…')
   if (item.code === 'whisper_not_installed') return t('本地转写还没安装。已有字幕可以直接继续。')

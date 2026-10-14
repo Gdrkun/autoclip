@@ -3,17 +3,21 @@ import { t } from '../../i18n'
 import { Row } from '../../ui'
 import api from '../../services/api'
 
-export default function SpeakerTranscription({ enabled, prompt, onChange }: {
+type LocalModelStatus = { ready: boolean; sensevoice: boolean; whisper: boolean }
+
+export default function SpeakerTranscription({ provider, enabled, prompt, onChange }: {
+  provider: 'whisper_local' | 'sensevoice_local'
   enabled: boolean; prompt: string; onChange: (update: { speaker_diarization?: boolean; initial_prompt?: string }) => void
 }) {
-  const [ready, setReady] = useState<boolean | null>(null)
+  const [modelStatus, setModelStatus] = useState<LocalModelStatus | null>(null)
   useEffect(() => {
     let active = true
-    api.get<unknown, { ready: boolean }>('/studio/speaker-subtitles/status').then(value => {
-      if (active) setReady(value.ready)
-    }).catch(() => { if (active) setReady(false) })
+    api.get<unknown, LocalModelStatus>('/studio/speaker-subtitles/status').then(value => {
+      if (active) setModelStatus(value)
+    }).catch(() => { if (active) setModelStatus({ ready: false, sensevoice: false, whisper: false }) })
     return () => { active = false }
   }, [])
+  const ready = modelStatus === null ? null : !!(modelStatus.ready && modelStatus[provider === 'sensevoice_local' ? 'sensevoice' : 'whisper'])
   return <>
     <Row label={t('说话人字幕')} hint={t('本地识别说话人，在编辑器中校对字幕并绑定颜色。')}>
       <input type="checkbox" aria-label={t('说话人字幕')} checked={enabled} onChange={event => onChange({ speaker_diarization: event.target.checked })}/>

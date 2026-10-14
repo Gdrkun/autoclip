@@ -33,6 +33,13 @@ def _analysis(settings: ai_models.ModelSettings) -> dict:
 
 def _transcription(settings: ai_models.ModelSettings) -> dict:
     choice = settings.transcription or ai_models.Transcription()
+    if choice.speaker_diarization and choice.provider in ('whisper_local', 'sensevoice_local'):
+        from backend.services.speaker_integration import status as speaker_status
+        state = speaker_status()
+        backend = 'whisper' if choice.provider == 'whisper_local' else 'sensevoice'
+        if state.get('ready') and state.get(backend):
+            return _check(True, 'speaker_ready')
+        return _check(False, 'speaker_not_ready', 'settings_transcription')
     if choice.provider == 'whisper_local':
         from backend.services import whisper_runtime
         status = whisper_runtime.get_status().get('status')
