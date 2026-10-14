@@ -12,6 +12,10 @@ import quality_gate
 
 
 class QualityGateTests(unittest.TestCase):
+    def test_frontend_uses_windows_command_launcher(self):
+        with patch('quality_gate.os.name', 'nt'):
+            self.assertTrue(all(command[0] == 'npm.cmd' for _, command, _ in quality_gate.checks('frontend', sys.executable)))
+
     def test_failure_survives_later_success_and_data_is_isolated(self):
         with tempfile.TemporaryDirectory() as temp:
             original = Path(temp) / 'user-data'

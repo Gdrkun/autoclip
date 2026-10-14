@@ -36,3 +36,13 @@
 - 本次变更：在现有字幕转写设置加入本地说话人开关和词语提示，正常 generate_subtitle_for_video 路由接入独立 Whisper medium CPU int8/CAM++；项目保存 speaker sidecar，Studio 草稿自动继承并保存可编辑快照。现有编辑器增加识别/重新转写、结果应用、人物名/颜色、逐句文本/时间/归属和双行补句；原导出路径生成按 scene 映射的双色 ASS/MP4。真实词时间戳按说话人切换拆句；失败保留旧结果，颜色关闭保留校对文本，旧数据无新增默认字段；八语文案同步。Windows 门禁使用 npm.cmd。免费模型/依赖独立安装，不替换原 .venv、配置或正式版数据；未创建独立试测页面。
 - 影响范围：backend/api/v1/studio.py、ai_model_settings/speech_recognizer、studio/models/store/jobs/render、新 speaker_integration/speaker_whisper/speaker_ass；现有 AIModelSettings/StudioEditor 及新子组件、类型、八语目录和对应测试；可选依赖、质量 runner 和开发说明。新增模型来自官方 Systran Whisper medium（MIT），本地校验 LFS SHA-256，推理阻断网络。
 - 验证方式：定向后端 58 passed 无 skip，全 backend 正确性 lint 通过；统一 contracts 83 项 release-gate 测试通过；独立 checkout 的完整 frontend lint/类型/290 测试/build 通过（关闭 sourcemap 上传）。用户 FLV 实际 Whisper 输出 2 speaker/10 cue，当次 88.282s、2096.26 MiB 采样 RSS，不作准确率承诺；原正常转写入口的本地合成链路验证 SRT、项目 sidecar、新 Draft 继承 2 speaker。Edge 在隔离正常设置/Studio 页实际保存刷新、校对、改名、补重叠和原导出弹窗生成 18s 音视频 MP4，首中尾抽帧及全解码通过，ASS 下载及后台识别任务完成。完整 all 后端门禁在 Windows 的既有权限/平台 skip 条件及 1800s 超时下未通过，失败报告保留，不能称发布验收通过；安装包、付费高光真实渠道与双平台未验收。本地开发 API/Worker 恢复，正常前端使用空闲 13001，其他项目 3000/3001 服务保留。未提交/推送/发布。
+
+
+## 2026-10-14 17:06
+
+- 类型：修复、文档。
+- 涉及功能：开发网页的模型列表刷新、设置保存和 Studio 写请求来源校验。
+- 原功能：正常前端已改用 13001，但本次启动后端时未追加来源；Vite 代理更改 Host 后导致网页写请求被来源守卫以 403 origin_not_allowed 拒绝。
+- 本次变更：重启本次开发 API，追加 http://127.0.0.1:13001 和 http://localhost:13001；补充同会话启动配置及代理原因说明，保留默认守卫和其他来源配置。
+- 影响范围：本地开发 API 进程环境、docs/SPEAKER_SUBTITLES_INTEGRATION.md；应用代码、既有 .env、用户数据、Redis/Worker 和其他项目前端未修改。
+- 验证方式：修复前带 13001 Origin 的隔离不存在项目 POST 为 403、无 Origin 为 404；修复后本机两种来源均进入项目校验返回预期 404 且 CORS 来源头正确，无 Origin 保持 404，其他网页仍 403。实际设置 discover 路由使用 connection=null 验证本机来源进入 Pydantic 校验返回 422、其他来源 403；没有创建项目、写设置或调用外部/付费服务。原 .env SHA-256 前后相同。私有 origin-guard-report.json 保留证据；本次只调整启动环境及文档，未重跑全套源码门禁或安装包验收，不宣称外部供应商已连通。

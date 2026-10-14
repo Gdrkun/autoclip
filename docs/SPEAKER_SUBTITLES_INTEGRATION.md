@@ -11,6 +11,15 @@
 
 本机正常开发页面改用 `http://127.0.0.1:13001/`，连接原 `18765` API；`3000/3001` 已由其他项目占用，未改变那些服务。独立验收页面/数据库仅用于测试，不是正常开发数据。API/Worker 依然使用原开发配置和 Redis。
 
+使用上述 `13001` 前端端口时，必须在启动后端的同一 PowerShell 会话追加来源白名单，再运行原 uvicorn 启动命令（若后端已运行，需要重启）：
+
+```powershell
+$speakerDevOrigins = @($env:AUTOCLIP_ALLOWED_ORIGINS -split ',' | Where-Object { $_ }) + @('http://127.0.0.1:13001', 'http://localhost:13001')
+$env:AUTOCLIP_ALLOWED_ORIGINS = ($speakerDevOrigins | Select-Object -Unique) -join ','
+```
+
+Vite 代理的 `changeOrigin: true` 会把请求 Host 改成后端地址，浏览器 Origin 仍是 `13001`；默认来源仅包含开发端口 `3000`，漏配会令模型列表刷新、保存设置和 Studio 写请求返回 `403 origin_not_allowed`。仅追加当前本机前端来源，保留其他已配置来源，不关闭来源守卫或修改现有 `.env`。2026-10-14 已验证本机两种来源能通过，其他网页来源仍被拒绝。
+
 ## 接入与兼容
 
 - `ai_model_settings.Transcription` 增加可选 speaker 开关与 prompt，默认关闭/为空且默认值不增加旧序列化字段。云端和未开启功能的旧转写分支保持原行为。

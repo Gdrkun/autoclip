@@ -30,7 +30,7 @@ def checks(group: str, python: str):
             ('editorial_fixtures', [python, '-m', 'backend.eval'], ROOT),
         ],
         'frontend': [
-            (f'frontend_{name}', ['npm', 'run', name], ROOT / 'frontend')
+            (f'frontend_{name}', ['npm.cmd' if os.name == 'nt' else 'npm', 'run', name], ROOT / 'frontend')
             for name in ('lint', 'typecheck', 'test', 'build')
         ],
     }
