@@ -8,8 +8,16 @@ def _text(value):
     return value.replace('\\', '＼').replace('{', '｛').replace('}', '｝').replace('\r', '').replace('\n', '\\N')
 
 
-def _header(width, height, style):
-    size = max(14, round(height * (.05 if style == 'bold' else .042)))
+def _geometry(width, height, style, layout=None):
+    base = max(14, round(height * (.05 if style == 'bold' else .042)))
+    size = round(base * (layout.font_scale if layout else 1))
+    x = round(width * layout.x) if layout else width // 2
+    y = round(height * layout.y) if layout else height - max(18, round(height * .09))
+    return size, x, y, round(size * 1.6)
+
+
+def _header(width, height, style, layout=None):
+    size = _geometry(width, height, style, layout)[0]
     border = 3 if style == 'box' else 1
     return ('[Script Info]\nScriptType: v4.00+\n'
             f'PlayResX: {width}\nPlayResY: {height}\nWrapStyle: 0\nScaledBorderAndShadow: yes\n'
@@ -18,11 +26,11 @@ def _header(width, height, style):
             '[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n')
 
 
-def _events(document, start_ms, end_ms, width, height, offset_ms=0, style='clean'):
+def _events(document, start_ms, end_ms, width, height, offset_ms=0, style='clean', layout=None):
     colors = {s.speaker_id: s.color for s in document.speakers}
     active, lines = [], []
-    size = max(14, round(height * (.05 if style == 'bold' else .042)))
-    for cue in sorted(document.subtitles, key=lambda item: (item.start_ms, item.layer, item.id)):
+    _, x, baseline, gap = _geometry(width, height, style, layout)
+    for cue in sorted(document.subtitles, key=lambda item: (item.start_ms, item.layer)):
         start, end = max(start_ms, cue.start_ms), min(end_ms, cue.end_ms)
         if end <= start:
             continue
@@ -36,8 +44,8 @@ def _events(document, start_ms, end_ms, width, height, offset_ms=0, style='clean
         active.append((end, slot))
         color = colors.get(cue.speaker_id, '#FFFFFF').lstrip('#')
         bgr = color[4:6] + color[2:4] + color[:2]
-        y = height - max(18, round(height * .09)) - slot * round(size * 1.6)
-        prefix = '{' + f'\\an2\\pos({width // 2},{y})\\1c&H{bgr}&' + '}'
+        y = baseline - slot * gap
+        prefix = '{' + f'\\an2\\pos({x},{y})\\1c&H{bgr}&' + '}'
         left, right = start - start_ms + offset_ms, end - start_ms + offset_ms
         if _time(right) == _time(left):
             continue
@@ -45,14 +53,14 @@ def _events(document, start_ms, end_ms, width, height, offset_ms=0, style='clean
     return lines
 
 
-def scene_ass(document, scene, width, height, style='clean'):
-    return _header(width, height, style) + '\n'.join(_events(document, round(scene.start * 1000), round(scene.end * 1000), width, height, style=style)) + '\n'
+def scene_ass(document, scene, width, height, style='clean', layout=None):
+    return _header(width, height, style, layout) + '\n'.join(_events(document, round(scene.start * 1000), round(scene.end * 1000), width, height, style=style, layout=layout)) + '\n'
 
 
-def draft_ass(document, scenes, width=1920, height=1080, style='clean'):
+def draft_ass(document, scenes, width=1920, height=1080, style='clean', layout=None):
     from backend.services.studio.audio import scene_duration
     lines, offset = [], 0
     for scene in scenes:
-        lines.extend(_events(document, round(scene.start * 1000), round(scene.end * 1000), width, height, offset, style))
+        lines.extend(_events(document, round(scene.start * 1000), round(scene.end * 1000), width, height, offset, style, layout))
         offset += round(scene_duration(scene) * 1000)
-    return _header(width, height, style) + '\n'.join(lines) + '\n'
+    return _header(width, height, style, layout) + '\n'.join(lines) + '\n'

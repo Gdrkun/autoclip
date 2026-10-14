@@ -1,7 +1,7 @@
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from backend.services.speaker_subtitles import SpeakerDocument
+from backend.services.speaker_subtitles import SpeakerDocument, SpeakerCaptionLayout
 
 Goal = Literal['content', 'highlight', 'promo']
 Language = Literal['source', 'zh', 'en', 'ja']
@@ -166,6 +166,7 @@ class Draft(BaseModel):
     title_accent: str | None = Field(default=None, pattern=r'^#[0-9a-fA-F]{6}$')
     subtitles: bool = True
     speaker_subtitles: SpeakerDocument | None = Field(default=None, exclude_if=lambda value: value is None)
+    speaker_subtitle_layout: SpeakerCaptionLayout | None = Field(default=None, exclude_if=lambda value: value is None)
     speaker_colors: bool = Field(default=True, exclude_if=lambda value: value)
     subtitle_style: Literal['clean', 'bold', 'box', 'accent'] = 'clean'
     original_audio: bool = True

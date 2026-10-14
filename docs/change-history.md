@@ -66,3 +66,23 @@
 - 本次变更：启用说话人字幕的本地转写按实际所选后端检查公共组件及 ASR，返回 speaker_ready/speaker_not_ready；缺少模型时仍拦截并指向转写设置。设置页按所选 SenseVoice/Whisper 状态显示结果，切换模型立即采用相应状态；导入页复用已有八语缺模型文案。未开启功能和云端路线保持原校验。
 - 影响范围：backend/services/studio/readiness.py、backend/tests/test_studio_readiness.py、frontend/src/features/settings/SpeakerTranscription.tsx、AIModelSettings.tsx、studio/CreativeImport.tsx、frontend/tests/speaker-transcription-readiness.test.cjs 及开发说明；未修改用户转写选择、密钥、.env、项目数据或原推理链路。
 - 验证方式：修复前当前 API 返回 sensevoice_not_ready，而独立模型状态与保存的 SenseVoice+speaker 开关均就绪；新增后端 5 个反例及前端 2 个反例失败。修复后就绪检查 26 passed、说话人相关 58 passed（独立进程），后端正确性 lint 通过；完整前端门禁 lint/types/294 tests/build 通过。当前 API 返回 speaker_ready，Edge 首页误报消失且设置保持开启；用户此前 FLV 在独立数据/配置下实际 SenseVoice CPU 正常转写入口生成非空 SRT 和 2 speaker/7 cue sidecar，不作准确率结论。首次混跑存在既有假的 FFmpeg 路径跨模块引用导致 WinError 193，失败报告保留，分组复验通过；未宣称全量后端或安装包通过。没有外部/付费模型调用，未提交或发布。
+
+
+## 2026-10-14 18:04
+
+- 类型：新增、修改。
+- 涉及功能：Studio 说话人字幕字号/位置、补句插入与排序、ASS 和 MP4 布局。
+- 原功能：字号位置硬编码，补句只能追加到列表底部，没有逐行移动或按时间排序；原片预览未复用实际双行分配，ASS 下载默认使用固定画幅。
+- 本次变更：新增可选草稿 speaker_subtitle_layout（缩放、横纵比例），默认缺省保持旧序列化和导出布局；编辑器增加字号/位置滑杆与恢复默认，补句按时间插入、行后补句、上下移动、一键时间排序。提取前端编辑/预览职责，按实际画幅和同一稳定双行规则预览；布局用于 ASS 与 MP4，ASS 下载按实际输出尺寸并遵循关闭颜色。列表顺序保留 ID/文本/时间，播放按源时间轴；八语文案同步。
+- 影响范围：backend/services/speaker_subtitles.py、speaker_ass.py、studio/models.py、studio/render.py、api/v1/studio.py；frontend/features/studio 的 SpeakerSubtitles、StudioEditor、types 及新 speakerSubtitleEditing/SpeakerCaptionPreview；八语 locale、相应前后端回归和开发说明。未修改用户项目/模型/配置，没有数据库迁移或高光重分析。
+- 验证方式：隔离定向后端 70 passed 无 skip、正确性 lint 通过；完整 frontend lint/类型/298 tests/build 通过，未上传 sourcemap。参数无穷/越界拒绝、默认形状、HTTP 保存刷新/手动排序、实际横竖画幅 ASS、颜色关闭、FFmpeg 像素字号/位置对照及全解码覆盖。Edge 隔离合成草稿实际 150%/40%/60% 布局、行后补句/上移/排序、保存刷新、实时预览与 ASS 保留；原导出弹窗生成 6s 音视频 MP4，全解码及抽帧确认通过。初次新像素测试秒数参数 .8 被 FFmpeg 拒绝，改为 0.8 后同组 70 项全部通过，首份失败报告保留。全量后端和桌面/双平台安装包验收未完成，不作发布声明；无外部/付费模型调用，未提交、推送或发布。
+
+
+## 2026-10-14 18:14
+
+- 类型：工作流、文档。
+- 涉及功能：说话人字幕开发分支按功能提交及 GitHub 交付。
+- 原功能：本次开发修改已验证并留痕，尚未形成按功能划分的 Git 提交。
+- 本次变更：将说话人字幕接入、Windows 开发门禁、FLV 导入、转写就绪检查及字幕布局/排序划分为独立中文提交，目标为个人 fork 的 feature/speaker-subtitles；保留原作者 upstream 和主分支。
+- 影响范围：本次授权源码、回归、八语文案和开发说明的 Git 历史；模型、媒体、用户数据配置与原始证据不入库。
+- 验证方式：逐提交检查暂存差异与功能依赖，完整源码快照比对原工作树；既有完整 frontend lint/types/298 tests/build、70 项 speaker/布局及 26 项 readiness 定向验证、FLV/兼容预览和真实 CPU/GUI/MP4 证据保留，最新 contracts 83 项通过。全量 backend 的既有失败/超时和安装包验收缺口不改写为通过；推送是否成功以本地私有交付回执及远端 SHA 核对为准。

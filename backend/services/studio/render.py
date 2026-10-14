@@ -188,7 +188,7 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
                             speaker_document = draft.speaker_subtitles
                             if not draft.speaker_colors:
                                 speaker_document = speaker_document.model_copy(update={'speakers': [s.model_copy(update={'color': '#FFFFFF'}) for s in speaker_document.speakers]})
-                            speaker_path.write_text(scene_ass(speaker_document, scene, w, h, draft.subtitle_style), encoding='utf-8')
+                            speaker_path.write_text(scene_ass(speaker_document, scene, w, h, draft.subtitle_style, layout=draft.speaker_subtitle_layout), encoding='utf-8')
                             graph, label = built
                             source_label = label.strip('[]') if label else '0:v'
                             built = ((graph + ';' if graph else '') + f"[{source_label}]ass=filename='{_escape_filter_path(speaker_path)}'[speakersub]", 'speakersub')

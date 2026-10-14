@@ -59,7 +59,16 @@ def export_speaker_ass(project_id: str, draft_id: str, db: Session = Depends(get
     draft = Draft.model_validate(saved)
     if not draft.speaker_subtitles:
         raise HTTPException(422, '请先识别说话人字幕')
-    return Response(draft_ass(draft.speaker_subtitles, draft.scenes, style=draft.subtitle_style),
+    info = call(intelligence._probe, call(jobs.source, project_id))
+    width, height = {'portrait': (1080, 1920), 'landscape': (1920, 1080)}.get(
+        draft.aspect, (info.get('width'), info.get('height')))
+    if not width or not height:
+        raise HTTPException(422, '无法读取原视频尺寸')
+    document = draft.speaker_subtitles
+    if not draft.speaker_colors:
+        document = document.model_copy(update={'speakers': [s.model_copy(update={'color': '#FFFFFF'}) for s in document.speakers]})
+    return Response(draft_ass(document, draft.scenes, int(width) // 2 * 2, int(height) // 2 * 2,
+                              style=draft.subtitle_style, layout=draft.speaker_subtitle_layout),
                     media_type='text/plain; charset=utf-8',
                     headers={'Content-Disposition': 'attachment; filename="speaker-subtitles.ass"'})
 

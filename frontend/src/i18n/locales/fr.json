@@ -1677,5 +1677,13 @@
   "下载 ASS": "Télécharger ASS",
   "修改后保存草稿，再导出字幕或成片。": "Enregistrez le brouillon avant d’exporter les sous-titres ou la vidéo.",
   "说话人字幕暂时只支持原语言": "Seule la langue source est disponible pour les sous-titres par intervenant",
-  "应用识别结果": "Appliquer le résultat"
+  "应用识别结果": "Appliquer le résultat",
+  "字幕大小（%）": "Taille des sous-titres (%)",
+  "横向位置（%）": "Position horizontale (%)",
+  "纵向位置（%）": "Position verticale (%)",
+  "恢复字幕布局": "Réinitialiser la disposition",
+  "按时间排序": "Trier par temps",
+  "在此后补句": "Insérer après",
+  "100% 为默认字号；位置按画面百分比。": "100 % est la taille par défaut ; les positions sont des pourcentages du cadre.",
+  "排序不改变字幕时间；播放顺序由时间决定。": "Le réordonnancement conserve les temps ; ils déterminent l’ordre de lecture."
 }

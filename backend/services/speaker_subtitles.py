@@ -9,6 +9,13 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from typing import Literal
 
 
+class SpeakerCaptionLayout(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    font_scale: float = Field(default=1, ge=.5, le=2.5, allow_inf_nan=False)
+    x: float = Field(default=.5, ge=.05, le=.95, allow_inf_nan=False)
+    y: float = Field(default=.91, ge=.15, le=.95, allow_inf_nan=False)
+
+
 class Speaker(BaseModel):
     model_config = ConfigDict(extra='forbid')
     speaker_id: str = Field(pattern=r'^spk_[0-9]+$')

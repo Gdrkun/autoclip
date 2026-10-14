@@ -1677,5 +1677,13 @@
   "下载 ASS": "Descargar ASS",
   "修改后保存草稿，再导出字幕或成片。": "Guarda el borrador antes de exportar subtítulos o vídeo.",
   "说话人字幕暂时只支持原语言": "Los subtítulos por hablante solo admiten el idioma original",
-  "应用识别结果": "Aplicar resultado"
+  "应用识别结果": "Aplicar resultado",
+  "字幕大小（%）": "Tamaño de subtítulos (%)",
+  "横向位置（%）": "Posición horizontal (%)",
+  "纵向位置（%）": "Posición vertical (%)",
+  "恢复字幕布局": "Restablecer posición y tamaño",
+  "按时间排序": "Ordenar por tiempo",
+  "在此后补句": "Insertar después",
+  "100% 为默认字号；位置按画面百分比。": "100% es el tamaño predeterminado; la posición se indica como porcentaje del cuadro.",
+  "排序不改变字幕时间；播放顺序由时间决定。": "Cambiar el orden conserva los tiempos; la reproducción sigue esos tiempos."
 }

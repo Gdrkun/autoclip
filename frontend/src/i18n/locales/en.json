@@ -1677,5 +1677,13 @@
   "下载 ASS": "Download ASS",
   "修改后保存草稿，再导出字幕或成片。": "Save the draft after editing, then export subtitles or video.",
   "说话人字幕暂时只支持原语言": "Speaker subtitles currently support the source language only",
-  "应用识别结果": "Apply recognition result"
+  "应用识别结果": "Apply recognition result",
+  "字幕大小（%）": "Subtitle size (%)",
+  "横向位置（%）": "Horizontal position (%)",
+  "纵向位置（%）": "Vertical position (%)",
+  "恢复字幕布局": "Reset subtitle layout",
+  "按时间排序": "Sort by time",
+  "在此后补句": "Insert after this",
+  "100% 为默认字号；位置按画面百分比。": "100% is the default size; positions are percentages of the frame.",
+  "排序不改变字幕时间；播放顺序由时间决定。": "Reordering keeps timestamps; playback follows the timestamps."
 }

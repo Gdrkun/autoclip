@@ -14,6 +14,7 @@ import DraftVariantDialog from './DraftVariantDialog'
 import { titlePresets, isArtworkStyle } from './titlePresets'
 import DraftSettingsPanel, { type FramingState } from './DraftSettingsPanel'
 import SpeakerSubtitles from './SpeakerSubtitles'
+import SpeakerCaptionPreview from './SpeakerCaptionPreview'
 import { draftExportState } from './draftExportState'
 import './studio.css'
 
@@ -34,6 +35,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [selected, setSelected] = useState(0)
   const [picker, setPicker] = useState<number | 'append' | null>(null)
   const [sourceDuration, setSourceDuration] = useState<number>()
+  const [sourceSize, setSourceSize] = useState({ width: 1920, height: 1080 })
   const [showVariant, setShowVariant] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showRendered, setShowRendered] = useState(false)
@@ -183,7 +185,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   if (!draft) return <div className="ac-page"><button className="ac-back" onClick={() => navigate(`/project/${projectId}`)}>{t("‹ 返回项目")}</button><div className="ac-empty"><b>{loading ? t("加载成片草稿…") : t("无法打开草稿")}</b>{loadError || (!loading && t("草稿不存在或已移除"))}<Btn onClick={refresh}>{t("重试")}</Btn></div></div>
   const previewUrl = currentJob?.status === 'completed' ? studioApi.video(projectId, currentJob.job_id) : ''
   const activeCue = cues.find(c => c.start <= currentTime && currentTime < c.end)
-  const speakerCues = draft.speaker_subtitles?.subtitles.filter(c => c.start_ms <= currentTime * 1000 && currentTime * 1000 < c.end_ms).slice(0, 2)
+  const captionSize = draft.aspect === 'portrait' ? { width: 1080, height: 1920 } : draft.aspect === 'landscape' ? { width: 1920, height: 1080 } : sourceSize
   const updateScene = (i: number, update: Partial<Scene>) => patch({ scenes: draft.scenes.map((s, index) => index === i ? {...s,...update} : s) })
   return <div className="ac-page studio-editor-page">
     <button className="ac-back" onClick={() => navigate(`/project/${projectId}`)}>{t("‹ 返回项目")}</button>
@@ -198,8 +200,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     <fieldset disabled={!!busy} className="studio-fieldset">
       <div className="studio-editor-grid"><section className="studio-editor-main"><div className="studio-editor-sticky"><div className={`studio-stage studio-stage--${draft.aspect}`}>
         <div className="studio-video-frame" style={{aspectRatio: draft.aspect==='portrait'?'9/16':draft.aspect==='landscape'?'16/9':undefined}}>
-          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = scene.start } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
-          {!showRendered && draft.subtitles && (speakerCues ? <div className="studio-caption-overlay" style={{ display: 'flex', flexDirection: 'column-reverse', textShadow: '0 1px 3px #000' }}>{speakerCues.map(cue => <div key={cue.id} style={{ color: draft.speaker_colors === false ? '#FFFFFF' : draft.speaker_subtitles?.speakers.find(s => s.speaker_id === cue.speaker_id)?.color || '#FFFFFF' }}>{cue.text}</div>)}</div>
+          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = scene.start } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
+          {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000}/>
             : activeCue && <div className={`studio-caption-overlay studio-caption studio-caption--${draft.subtitle_style || 'clean'}`}>{activeCue.text}</div>)}
           {!showRendered && selected===0 && draft.hook && !artworkStyle && <div className={`studio-hook studio-hook--${draft.title_style || 'plain'}`}>{draft.hook}</div>}
           {!showRendered && selected===0 && draft.hook && artworkStyle && <TitleArtwork projectId={projectId} draft={draft}/>}
@@ -210,7 +212,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       </div><div className="studio-row studio-preview-foot"><span className="studio-muted">{showRendered?t("实际渲染结果"):t("原片预览 · 成片取 {{range}} · 字幕、翻译以渲染结果为准", { range: scene ? `${fmtDuration(scene.start)}–${fmtDuration(scene.end)}` : "" })}</span>{previewUrl ? <Btn size="sm" onClick={() => setShowRendered(!showRendered)}>{showRendered?t("查看原片"):t("播放成片")}</Btn> : <Btn size="sm" disabled={!!active} onClick={render}>{active?t("正在渲染"):t("渲染预览")}</Btn>}</div></div>
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
       {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
-      <SpeakerSubtitles projectId={projectId} draftId={draftId} document={draft.speaker_subtitles} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
+      <SpeakerSubtitles projectId={projectId} draftId={draftId} document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
         onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })} onEnabled={value => patch({ speaker_colors: value })}
         onSeek={seconds => { const v = video.current; if (v) { v.currentTime = seconds; setCurrentTime(seconds) } }}/>
       <details className="studio-details studio-source-details"><summary>{t("调整镜头")}{' '}<span className="ac-mono">{draft.scenes.length}</span>{' '}{t("· 顺序与起止点")}</summary>

@@ -4,6 +4,7 @@ export type SubtitleStyle = 'clean' | 'bold' | 'box' | 'accent'
 export const subtitleStyles: { value: SubtitleStyle; label: string }[] = [{ value: 'clean', label: '简洁描边' }, { value: 'bold', label: '粗体大字' }, { value: 'box', label: '底色字幕条' }, { value: 'accent', label: '醒目黄字' }]
 export interface SubtitleCue { start: number; end: number; text: string }
 export interface SpeakerCue { id: string; start_ms: number; end_ms: number; text: string; speaker_id: string | null; layer: number; assignment_reason?: string }
+export interface SpeakerCaptionLayout { font_scale: number; x: number; y: number }
 export interface SpeakerDocument { schema_version: 1; time_base: 'clip'; duration_ms: number; speakers: { speaker_id: string; display_name: string; color: string }[]; subtitles: SpeakerCue[]; turns: { start_ms: number; end_ms: number; speaker_id: string }[] }
 export interface FramingStatus { status: 'installed' | 'not_installed' | 'installing' | 'error'; progress: number; message: string; size_mb: number; cooldown_seconds?: number }
 export interface AutoFrameResult { window_fraction: number; scenes: { id: string; crop_x: number | null; crop_track: CropPoint[] | null; faces: number; samples: number; shots: number; fit_shots: number; switches: number }[] }
@@ -58,7 +59,7 @@ export interface Draft {
   crop_x?: number; title_style?: 'plain' | 'impact' | 'card' | 'comic' | 'neon' | 'arena' | 'editorial' | 'pixel' | 'frosted'
   title_template_version?: 1 | 2 | 3 | 4 | 5 | 6; title_motion?: boolean; title_scale?: number; title_y?: number; title_accent?: string | null
   subtitles: boolean; subtitle_style?: SubtitleStyle; original_audio: boolean; revision: number; updated_at: string; origin: string
-  speaker_subtitles?: SpeakerDocument | null; speaker_colors?: boolean
+  speaker_subtitles?: SpeakerDocument | null; speaker_colors?: boolean; speaker_subtitle_layout?: SpeakerCaptionLayout | null
   parent_draft_id?: string | null; parent_revision?: number | null
   /** Automatic template packaging; kept as-is on save so edits never drop it. */
   packaging?: Packaging | null
