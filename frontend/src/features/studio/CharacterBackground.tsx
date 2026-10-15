@@ -3,6 +3,7 @@ import { t } from '../../i18n'
 import { Btn } from '../../ui'
 import api from '../../services/api'
 import './character-background.css'
+import CreatorLibrary from './CreatorLibrary'
 
 export interface BackgroundReference { subject: string; title: string; url: string; excerpt: string; kind: 'profile' | 'article' | 'search_excerpt' }
 export interface BackgroundReport {
@@ -66,6 +67,7 @@ export default function CharacterBackground({ query, onChange, disabled }: {
     <span className="studio-background-cache-note">{t('公开资料保留来源，缓存 7 天；可添加平台或组合名减少重名。')}</span>
     {error && <p className="studio-error" role="alert">{error}</p>}
     <BackgroundResearchSummary report={report}/>
+    {report?.sources.length ? <CreatorLibrary query={query} report={report}/> : null}
     {report && <button className="studio-link studio-background-refresh" disabled={disabled || busy} onClick={() => void lookup(true)}>{t('重新查询背景')}</button>}
   </div>
 }

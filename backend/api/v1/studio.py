@@ -22,6 +22,43 @@ from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, E
 router = APIRouter()
 
 
+from backend.services import creator_library
+
+
+@router.get('/creator-library')
+def get_creator_library():
+    return call(creator_library.load).model_dump()
+
+
+@router.put('/creator-library')
+def put_creator_library(body: creator_library.Library):
+    return call(creator_library.save, body).model_dump()
+
+
+class CorrectionRequest(BaseModel):
+    texts: list[str] = Field(max_length=10000)
+
+
+@router.post('/{project_id}/vocabulary-suggestions')
+def vocabulary_suggestions(project_id: str, body: CorrectionRequest, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    if any(len(text) > 2000 for text in body.texts):
+        raise HTTPException(422, '字幕正文过长')
+    return {'suggestions': call(creator_library.corrections, body.texts, creator_library.project_query(project_id))}
+
+
+class SelectionFeedbackRequest(BaseModel):
+    direction: Literal['more', 'less']
+    category: Literal['singing', 'humor', 'interaction', 'meme', 'other']
+    note: str = Field(default='', max_length=300)
+
+
+@router.post('/{project_id}/drafts/{draft_id}/selection-feedback')
+def selection_feedback(project_id: str, draft_id: str, body: SelectionFeedbackRequest, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(creator_library.record_feedback, project_id, draft_id, body.direction, body.category, body.note).model_dump()
+
+
 class BackgroundRequest(BaseModel):
     query: str = Field(min_length=1, max_length=200)
     force_refresh: bool = False

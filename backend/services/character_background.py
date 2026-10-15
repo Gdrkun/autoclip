@@ -333,8 +333,10 @@ def load_project(project_id):
 @contextmanager
 def project_context(project_id):
     token = _current.set(load_project(project_id))
+    from backend.services.creator_library import project_context as library_context
     try:
-        yield
+        with library_context(project_id):
+            yield
     finally:
         _current.reset(token)
 

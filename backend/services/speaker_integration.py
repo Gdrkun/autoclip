@@ -36,6 +36,8 @@ def status():
 
 def execute(video, *, backend='whisper', prompt='', subtitles=None):
     root = runtime_root()
+    from backend.services.creator_library import asr_prompt
+    prompt = asr_prompt(prompt)
     ready = status()
     if not ready.get(backend):
         raise ValueError('本地说话人模型未就绪')
@@ -168,6 +170,10 @@ def start(project_id, backend, prompt, reuse=True):
         return job
 
 
+from backend.services.character_background import with_project_context
+
+
+@with_project_context
 def _recognize(project_id, source, backend, prompt, reuse, job):
     from backend.services.publish_export import find_source_srt
     try:

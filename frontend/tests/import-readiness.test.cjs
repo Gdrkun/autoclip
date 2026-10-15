@@ -119,7 +119,7 @@ function render(options = {}) {
     './editingStyleSession': { readStyle: () => ({ key: '', status: 'idle', result: null, latencyMs: 0 }) },
     '../../analytics/experience': { trackExperience() {} },
     './types': { defaultImportOptions: { goal: 'auto', language: 'source', aspect: null, duration: null, instruction: '' } },
-    './ImportPreferences': { default: 'preferences' }, './SelectionPreferences': { default: 'selection-preferences' },
+    './ImportPreferences': { default: 'preferences' }, './CreatorLibrary': {default:'creator-library'}, './SingingOptions': {default:'singing-options'}, './SelectionPreferences': { default: 'selection-preferences' },
     '../../services/api': { speechApi: {
       installRuntime: async () => { installs.push('whisper'); return { started: true, message: '' } },
       downloadModel: async model => { installs.push('model:' + model); return { status: 'downloading', model, message: '' } },

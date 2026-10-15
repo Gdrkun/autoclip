@@ -69,6 +69,7 @@ class SpeechRecognitionConfig:
     model: str = "base"  # Whisper模型大小
     timeout: int = 0  # 超时时间（秒），0表示无限制
     output_format: str = "srt"  # 输出格式
+    initial_prompt: str = ''
     enable_timestamps: bool = True  # 是否启用时间戳
     enable_punctuation: bool = True  # 是否启用标点符号
     enable_speaker_diarization: bool = False  # 是否启用说话人分离
@@ -513,6 +514,7 @@ class SpeechRecognizer:
                 try:
                     seg_iter, _info = model.transcribe(
                         audio_input, language=language, vad_filter=vad_filter, word_timestamps=True,
+                        **({'initial_prompt': config.initial_prompt, 'hotwords': config.initial_prompt} if config.initial_prompt else {}),
                     )
                 except TypeError as exc:
                     if 'metadata_errors' not in str(exc) or not isinstance(audio_input, str):
@@ -532,6 +534,7 @@ class SpeechRecognizer:
                     audio_input = np.frombuffer(decoded.stdout, np.int16).astype(np.float32) / 32768.0
                     seg_iter, _info = model.transcribe(
                         audio_input, language=language, vad_filter=vad_filter, word_timestamps=True,
+                        **({'initial_prompt': config.initial_prompt, 'hotwords': config.initial_prompt} if config.initial_prompt else {}),
                     )
                 # faster-whisper decodes lazily: each segment is real progress through the audio (RC156 #14).
                 from backend.utils.transcription_progress import report
@@ -873,7 +876,10 @@ def generate_subtitle_for_video(video_path: Path, output_path: Optional[Path] = 
     if enable_fallback is None:
         enable_fallback = not local_selected
     model = model or configured_whisper_model()
+    from backend.services.creator_library import asr_prompt
+    vocabulary_prompt = asr_prompt(selection.initial_prompt if local_selected else '')
     config = SpeechRecognitionConfig(
+        initial_prompt=vocabulary_prompt,
         method=SpeechRecognitionMethod(method) if method != "auto" else SpeechRecognitionMethod.WHISPER_LOCAL,
         language=LanguageCode(language),
         model=model,

@@ -15,6 +15,7 @@ import { readStyle } from './editingStyleSession'
 import { defaultImportOptions, ImportOptions } from './types'
 import ImportPreferences from './ImportPreferences'
 import SelectionPreferences from './SelectionPreferences'
+import CreatorLibrary from './CreatorLibrary'
 import { speechApi } from '../../services/api'
 import { repairDestination, submissionBlock, visibleIssues, type ImportReadiness, type ReadinessIssue } from './importReadiness'
 import './studio.css'
@@ -161,6 +162,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       {!templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       {templatesOn && options.html_template === 'classic' && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       <SelectionPreferences value={options.instruction} backgroundQuery={options.background_query || ''} disabled={busy} onBackgroundChange={background_query => setOptions({...options, background_query})} onChange={instruction => setOptions({...options, instruction})}/>
+      <div className="creator-import-tools"><CreatorLibrary query={options.background_query || ''}/></div>
       {issues.length > 0 && <div className="studio-readiness" role="status">
         {issues.map(item => <div className="studio-readiness-row" key={item.key}>
           <StatusDot tone={item.code === 'whisper_installing' || item.code === 'whisper_model_downloading' ? 'accent' : 'muted'} label={issueCopy(item)} />

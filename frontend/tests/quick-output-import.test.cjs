@@ -32,7 +32,7 @@ for (const sourceKind of ['link', 'file']) test(`quick ${sourceKind} import subm
   './StyleProbeLine':{default:'style-probe'},
   './editingStyleSession':{readStyle:()=>({key:'',status:'idle',result:null,latencyMs:0})},
   './types':{defaultImportOptions:{goal:'auto',language:'source',aspect:null,duration:null,instruction:''}},
-  './ImportPreferences':{default:'preferences'}, './SelectionPreferences': { default: 'selection-preferences' },'../../services/api':{speechApi:{installRuntime:async()=>({started:true,message:''})}},
+  './ImportPreferences':{default:'preferences'}, './CreatorLibrary':{default:'creator-library'}, './SingingOptions':{default:'singing-options'}, './SelectionPreferences': { default: 'selection-preferences' },'../../services/api':{speechApi:{installRuntime:async()=>({started:true,message:''})}},
   './importReadiness':loadReadiness(),'./studio.css':{},'./quick-output.css':{},
  })
  const tree=nodes(component({onImported:async()=>{}}))

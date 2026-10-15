@@ -6,6 +6,7 @@ import { errorText } from './api'
 import type { SpeakerCaptionLayout, SpeakerDocument } from './types'
 import { insertSpeakerCue, moveSpeakerCue, sortSpeakerCues } from './speakerSubtitleEditing'
 import './speaker-subtitles.css'
+import CorrectionSuggestions from './CorrectionSuggestions'
 
 type State = { job: { job_id?: string; status: string; error?: string }; document: SpeakerDocument | null }
 
@@ -95,6 +96,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
       </details>
       {(error || job.error) && <p role="alert" className="speaker-error">{t(error || job.error || '')}</p>}
       {document && <>
+        <CorrectionSuggestions projectId={projectId} document={document} onChange={onChange}/>
         <section className="speaker-section">
           <div className="speaker-section-head"><div><h3>{t('人物与颜色')}</h3><p>{t('给说话人命名，颜色会跟随对应字幕。')}</p></div>
             <label className="speaker-color-switch"><input type="checkbox" aria-label={t('启用双色字幕')} checked={enabled} onChange={e => onEnabled(e.target.checked)}/><span className="speaker-switch-track"/><span>{t('启用双色字幕')}</span></label>

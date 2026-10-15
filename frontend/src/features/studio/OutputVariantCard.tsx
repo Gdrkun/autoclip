@@ -5,6 +5,7 @@ import { Btn, fmtDuration } from '../../ui'
 import { trackOutputShare, type VariantProperties } from '../../analytics/studio'
 import StudioDownloadLink from './StudioDownloadLink'
 import OutputFeedback from './OutputFeedback'
+import SelectionFeedback from './SelectionFeedback'
 import { Draft, OutputVariant, RenderJob } from './types'
 import { studioApi } from './api'
 import { outputVariantPublishPath } from './outputVariantPublish'
@@ -62,6 +63,7 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
         {completed && variant.render_job_id && <Btn variant="text" onClick={() => navigate(outputVariantPublishPath(projectId, variant))}>{t('发布')}</Btn>}
         {completed && variant.render_job_id && <StudioDownloadLink className="studio-output-download" projectId={projectId} jobId={variant.render_job_id} onSaved={downloaded} variant={analytics}/>}
       </div></div>
+      {draft && <SelectionFeedback projectId={projectId} draftId={draft.id}/>}
       {asking && <OutputFeedback projectId={projectId} variant={analytics} onDone={() => setAsking(false)}/>}
     </div>
   </article>

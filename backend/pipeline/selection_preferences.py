@@ -14,7 +14,8 @@ def normalize_instruction(value: str | None) -> str:
 def selection_prompt(value: str | None) -> str:
     instruction = normalize_instruction(value)
     from backend.services.character_background import context_prompt
-    background = context_prompt()
+    from backend.services.creator_library import context_prompt as library_prompt
+    background = context_prompt() + library_prompt()
     if not instruction:
         return background
     return '''
@@ -36,6 +37,7 @@ def selection_prompt(value: str | None) -> str:
 def cache_suffix(value: str | None) -> str:
     instruction = normalize_instruction(value)
     from backend.services.character_background import context_key
-    background = context_key()
+    from backend.services.creator_library import context_key as library_key
+    background = context_key() + library_key()
     content = instruction + ('\nbackground:' + background if background else '')
     return '.selection-' + hashlib.sha256(content.encode('utf-8')).hexdigest()[:16] if content else ''

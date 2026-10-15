@@ -9,7 +9,7 @@ function load(mocks={}) {
     react:{useState:value=>[value,()=>{}],useEffect(){},useRef:current=>({current})},
     'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:(value,args)=>value.replace('{{count}}',String(args?.count))},
     '../../ui':{Btn:'button'},'../../services/api':{default:{post:()=>assert.fail('no unexpected network')}},
-    './character-background.css':{},...mocks,
+    './character-background.css':{},'./CreatorLibrary':{default:'creator-library'},...mocks,
   }
   vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,
     {exports,AbortController,require:name=>modules[name]||assert.fail(name)})
