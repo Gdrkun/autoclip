@@ -99,6 +99,30 @@ def recognize_speaker_subtitles(project_id: str, body: SpeakerRequest, db: Sessi
     return call(start, project_id, body.backend, body.prompt, body.reuse_subtitles)
 
 
+@router.post('/{project_id}/speaker-subtitles/cancel')
+def cancel_speaker_subtitles(project_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    from backend.services.speaker_integration import job_state, job_path, atomic_json
+    from backend.core.project_cancellation import stop
+    value = call(job_state, project_id)
+    if value['status'] in ('queued', 'running'):
+        atomic_json(job_path(project_id).with_name('speaker_stop.json'), {'job_id': value.get('job_id')})
+        stop(project_id)
+    return value
+
+
+@router.post('/{project_id}/pause-processing')
+def pause_audio_processing(project_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    state = store.read(project_id)
+    if (state.get('analysis') or {}).get('status') == 'running':
+        from backend.core.project_cancellation import stop
+        from backend.services.speaker_integration import atomic_json
+        atomic_json(store.directory(project_id) / 'metadata/audio_pause.json', {'run_id': state['analysis'].get('run_id')})
+        stop(project_id)
+    return {'status': 'requested'}
+
+
 @router.get('/{project_id}/speaker-subtitles')
 def speaker_subtitle_state(project_id: str, db: Session = Depends(get_db)):
     from backend.services.speaker_integration import job_state, load_document

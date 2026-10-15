@@ -8,7 +8,7 @@ import { insertSpeakerCue, moveSpeakerCue, sortSpeakerCues } from './speakerSubt
 import './speaker-subtitles.css'
 import CorrectionSuggestions from './CorrectionSuggestions'
 
-type State = { job: { job_id?: string; status: string; error?: string }; document: SpeakerDocument | null }
+type State = { job: { job_id?: string; status: string; error?: string; percent?:number; completed_chunks?:number; total_chunks?:number }; document: SpeakerDocument | null }
 
 type IconName = 'people' | 'chevron' | 'play' | 'up' | 'down' | 'plus' | 'remove' | 'settings'
 function Icon({ name }: { name: IconName }) {
@@ -80,7 +80,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
     </summary>
     <div className="speaker-panel-body">
       <details className="speaker-recognition" open={!document}>
-        <summary><Icon name="settings"/><span>{t('识别设置')}</span><span className="speaker-recognition-status">{processing ? t('正在识别字幕…') : 'CPU'}</span><Icon name="chevron"/></summary>
+        <summary><Icon name="settings"/><span>{t('识别设置')}</span><span className="speaker-recognition-status">{processing ? `${t('正在识别字幕…')} ${job.percent ?? 0}%` : 'CPU'}</span><Icon name="chevron"/></summary>
         <div className="speaker-recognition-body">
           <div className="speaker-recognition-fields">
             <label className="speaker-field"><span>{t('转写模型')}</span><select className="ac-input" aria-label={t('转写模型')} value={backend} onChange={e => setBackend(e.target.value)}><option value="whisper">Whisper medium · CPU</option><option value="sensevoice">SenseVoiceSmall · CPU</option></select></label>
@@ -88,12 +88,13 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           </div>
           <div className="speaker-recognition-footer">
             <label className="speaker-check"><input type="checkbox" checked={reuse} onChange={e => setReuse(e.target.checked)}/><span>{t('复用已有字幕')}</span></label>
-            <div className="speaker-buttons"><Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
+            <div className="speaker-buttons">{processing && <Btn size="sm" onClick={()=>void api.post(base+'/cancel').catch(e=>setError(errorText(e)))}>{t('暂停识别')}</Btn>}<Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
               {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing} onClick={() => onChange(recognized)}>{t('应用识别结果')}</Btn>}
             </div>
           </div>
         </div>
       </details>
+      {job.total_chunks && <p className="studio-muted">{t('分段进度 {{done}} / {{total}}', {done:job.completed_chunks||0,total:job.total_chunks})}</p>}
       {(error || job.error) && <p role="alert" className="speaker-error">{t(error || job.error || '')}</p>}
       {document && <>
         <CorrectionSuggestions projectId={projectId} document={document} onChange={onChange}/>

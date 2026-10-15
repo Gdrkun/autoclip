@@ -140,6 +140,8 @@ def infer(args):
                           'inference_seconds': round(time.monotonic() - started, 3),
                           'versions': {name: importlib.metadata.version(name)
                                        for name in ('funasr', 'torch', 'torchaudio', 'numpy')}}}
+    if getattr(args, 'include_embeddings', False):
+        result.update(windows=windows, embeddings=embeddings)
     args.result.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False), encoding='utf-8')
 
 
@@ -157,6 +159,7 @@ def main():
     parser.add_argument('--threads', type=int, choices=range(1, 9), default=4)
     parser.add_argument('--speakers', type=int, choices=range(1, 9))
     parser.add_argument('--threshold', type=float, default=.25)
+    parser.add_argument('--include-embeddings', action='store_true')
     infer(parser.parse_args())
 
 

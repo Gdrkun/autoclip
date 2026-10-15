@@ -7,12 +7,10 @@ import json
 import os
 from pathlib import Path
 import subprocess
-import tempfile
 import threading
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from backend.services.speaker_integration import atomic_json, runtime_root
-from backend.services import child_guard
 
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='singing-cpu')
 _lock = threading.RLock()
@@ -39,7 +37,7 @@ class Report(BaseModel):
     status: str
     model: str = ''
     device: str = 'cpu'
-    duration: float = Field(default=0, ge=0, le=7200)
+    duration: float = Field(default=0, ge=0)
     quality: str = 'candidate_requires_review'
     segments: list[Segment] = Field(default_factory=list, max_length=1500)
     fingerprint: str = ''
@@ -87,17 +85,12 @@ def _worker(action, result, audio=None):
     if action == 'analyze':
         env.update(HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', MODELSCOPE_OFFLINE='1')
     log = result.with_suffix('.log')
-    with log.open('w', encoding='utf-8') as stream:
-        process = subprocess.Popen(command, env=env, stdout=stream, stderr=subprocess.STDOUT)
-        owner = 'singing-' + str(process.pid)
-        child_guard.track(process, owner)
-        try:
-            code = process.wait(timeout=1800)
-        except subprocess.TimeoutExpired:
-            child_guard.kill(owner)
-            raise ValueError('歌声检测超时，请缩短视频后重试') from None
-    if code:
-        raise ValueError('歌声模型未完成处理，请检查本地运行时和模型后重试')
+    from backend.services.long_audio import run_child
+    try:
+        run_child(command, env=env, log=log, timeout=1800)
+    except subprocess.TimeoutExpired:
+        raise ValueError('歌声分段检测超时，重试会复用已完成分段') from None
+
 
 
 def prepare():
@@ -136,10 +129,19 @@ def report_path(project_id):
 
 def fingerprint(video):
     info = Path(video).stat()
-    return hashlib.sha256(f'{info.st_size}:{info.st_mtime_ns}'.encode()).hexdigest()
+    signatures = [info.st_size, info.st_mtime_ns, 'chunked-v1']
+    files = [Path(__file__).with_name(name) for name in ('long_audio.py', 'long_singing.py', 'singing_worker.py')]
+    files += [model_root() / 'model.safetensors', model_root() / 'config.json']
+    for file in files:
+        try:
+            state = file.stat()
+            signatures.append([str(file), state.st_size, state.st_mtime_ns])
+        except OSError:
+            signatures.append([str(file), None])
+    return hashlib.sha256(json.dumps(signatures).encode()).hexdigest()
 
 
-def analyze(project_id, video, enabled):
+def analyze(project_id, video, enabled, on_progress=None):
     if not enabled:
         if report_path(project_id).exists():
             atomic_json(report_path(project_id), Report(status='disabled').model_dump())
@@ -153,21 +155,9 @@ def analyze(project_id, video, enabled):
         result = Report(status='unavailable', error='歌声模型尚未就绪，本次按字幕和制作要求选片')
     else:
         try:
-            from backend.utils.ffmpeg_utils import get_ffmpeg_path
-            from backend.services.studio.intelligence import _probe
-            duration = float(_probe(video).get('duration') or 0)
-            if not 1 <= duration <= 7200:
-                raise ValueError('歌声检测支持 1 秒至 2 小时的视频')
-            with _inference_lock, tempfile.TemporaryDirectory(prefix='autoclip-singing-') as temp:
-                audio, output = Path(temp) / 'audio.wav', Path(temp) / 'result.json'
-                extracted = subprocess.run([get_ffmpeg_path(), '-nostdin', '-v', 'error', '-y', '-i', str(video),
-                                            '-vn', '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(audio)],
-                                           capture_output=True, timeout=300)
-                if extracted.returncode:
-                    raise ValueError('无法读取音轨，歌声检测未完成')
-                checkpoint(project_id)
-                _worker('analyze', output, audio)
-                result = Report.model_validate_json(output.read_text(encoding='utf-8'))
+            from backend.services.long_singing import analyze as chunked_analyze
+            with _inference_lock:
+                result = chunked_analyze(video, model_root(), _worker, on_progress)
                 result.fingerprint = fingerprint(video)
         except (ValueError, OSError, subprocess.SubprocessError) as error:
             result = Report(status='failed', error=str(error) if isinstance(error, ValueError) else '歌声检测未完成，本次按字幕选片')

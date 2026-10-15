@@ -27,7 +27,7 @@ export default function SpeakerTranscription({ provider, enabled, prompt, onChan
       <Row label={t('转写提示词')} hint={t('填写人名和固定用语，帮助 Whisper 识别专名。')}>
         <input className="ac-input" aria-label={t('转写提示词')} maxLength={500} value={prompt} onChange={event => onChange({ initial_prompt: event.target.value })}/>
       </Row>
-      <p className="ac-note">{t('当前支持十分钟以内的视频，不上传音频。')}</p>
+      <p className="ac-note">{t('长视频自动分段处理，重试可复用已完成分段；音频不上传。')}</p>
     </>}
   </>
 }

@@ -51,6 +51,12 @@ def main():
         snapshot_download(REPOSITORY, revision=REVISION, local_dir=str(args.model),
                           allow_patterns=['config.json', 'preprocessor_config.json', 'model.safetensors'])
     os.environ.update(HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1')
+    if args.action == 'analyze':
+        import socket
+        def denied(*a, **kw):
+            raise RuntimeError('Singing inference is offline')
+        socket.socket.connect = denied
+        socket.create_connection = denied
     import torch
     import numpy as np
     from transformers import ASTFeatureExtractor, ASTForAudioClassification
@@ -64,8 +70,8 @@ def main():
         with wave.open(str(args.audio), 'rb') as audio:
             assert audio.getframerate() == 16000 and audio.getnchannels() == 1 and audio.getsampwidth() == 2
             duration = audio.getnframes() / 16000
-            if not 1 <= duration <= 7200:
-                raise ValueError('歌声检测支持 1 秒至 2 小时的视频')
+            if not 0 < duration <= 300:
+                raise ValueError('歌声检测子进程仅处理不超过五分钟的单个分段')
             for offset in range(0, max(1, int(duration) - 4), 5):
                 audio.setpos(offset * 16000)
                 samples = np.frombuffer(audio.readframes(160000), dtype='<i2').astype(np.float32) / 32768

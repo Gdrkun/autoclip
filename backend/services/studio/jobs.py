@@ -97,10 +97,30 @@ def _tracked(stage):
         @wraps(fn)
         def run(project_id, *args, **kwargs):
             identity = kwargs.pop('_io_receipt', None)
-            from backend.core.project_cancellation import ProjectDeleted, bind
+            from backend.core.project_cancellation import ProjectDeleted, JobStopped, bind, record_stop
             with bind(project_id), store.worker_read_scope(project_id, identity), llm_usage.tracking(project_id), llm_usage.stage(stage):
                 try:
+                    marker = store.directory(project_id) / 'metadata/audio_pause.json'
+                    if marker.is_file():
+                        import json
+                        try:
+                            paused_id = json.loads(marker.read_text(encoding='utf-8')).get('run_id')
+                        except (OSError, ValueError, AttributeError):
+                            paused_id = None
+                        active_id = (store.read(project_id).get('analysis') or {}).get('run_id')
+                        if paused_id and paused_id == active_id:
+                            raise JobStopped(project_id)
                     return fn(project_id, *args, **kwargs)
+                except JobStopped:
+                    with record_stop():
+                        def paused(data):
+                            data['analysis'] = {**(data.get('analysis') or {}), 'status': 'failed',
+                                'error': '处理已暂停，重试会复用已完成的音轨分段', 'error_code': 'cancelled'}
+                            if data.get('generation'):
+                                data['generation'].update(status='failed', error='处理已暂停，重试会复用已完成的音轨分段', error_code='cancelled')
+                        store.change(project_id, paused)
+                        mark_project(project_id, 'failed')
+                    return None
                 except ProjectDeleted:
                     return None  # deleted: the binder removes leftover files; nothing to record
                 except PermissionError as error:
@@ -1539,7 +1559,12 @@ def _inspect(project_id, options, url, browser):
         from backend.services.singing_detection import analyze as analyze_singing
         if options.detect_singing:
             store.change(project_id, lambda data: data['analysis'].update(message='正在检测歌声候选'))
-        singing = analyze_singing(project_id, source(project_id), options.detect_singing)
+        def singing_progress(done, total, reused):
+            store.change(project_id, lambda data: data['analysis'].update(message='正在检测歌声候选',
+                         percent=round(done * 100 / total), completed_chunks=done, total_chunks=total, reused_chunks=reused))
+        singing = analyze_singing(project_id, source(project_id), options.detect_singing,
+                                  **({'on_progress': singing_progress} if options.detect_singing else {}))
+        store.change(project_id, lambda data: data['analysis'].pop('percent', None))
         with project_context(project_id):
             plan = recommend(source(project_id), options)
         if background is not None:

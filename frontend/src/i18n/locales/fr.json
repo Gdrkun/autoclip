@@ -1787,5 +1787,11 @@
   "音频分类结果仅为候选，可能包含伴奏或哼唱；请试听确认，边界可能需要调整。": "Les résultats peuvent inclure accompagnement ou fredonnement. Écoutez pour vérifier et ajuster les limites.",
   "新建角色": "Créer un personnage",
   "删除此档案": "Supprimer ce profil",
-  "添加词条": "Ajouter un terme"
+  "添加词条": "Ajouter un terme",
+  "长视频自动分段处理，重试可复用已完成分段；音频不上传。": "Les longues vidéos sont traitées par segments. Une relance réutilise les segments terminés ; le son reste local.",
+  "暂停识别": "Suspendre la reconnaissance",
+  "分段进度 {{done}} / {{total}}": "Segments {{done}} / {{total}}",
+  "识别已暂停，重试会复用已完成分段": "Reconnaissance suspendue. Une relance reprend les segments terminés.",
+  "暂停处理": "Suspendre le traitement",
+  "处理已暂停，重试会复用已完成的音轨分段": "Traitement suspendu. Une relance reprend les segments audio terminés."
 }

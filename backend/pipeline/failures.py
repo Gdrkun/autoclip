@@ -253,6 +253,8 @@ def failure_from_speech_error(message: str) -> PipelineFailure:
     if media_precheck.is_no_audio_text(text):
         # 视频本身没有音轨：不是转写设置的问题，不要指到「设置 → 转写」。
         return media_precheck.no_audio_failure("SUBTITLE")
+    if '分段' in text or '说话人' in text:
+        return PipelineFailure('SUBTITLE', text, code='subtitle_processing')
     if 'SenseVoice' in text:
         return PipelineFailure('SUBTITLE', text,
                                '' if '设置 → 转写' in text else '到「设置 → 转写」检查 SenseVoiceSmall，或导入 .srt 字幕。',

@@ -1787,5 +1787,11 @@
   "音频分类结果仅为候选，可能包含伴奏或哼唱；请试听确认，边界可能需要调整。": "Audio labels are candidates and may include accompaniment or humming. Listen to verify and adjust boundaries.",
   "新建角色": "New character",
   "删除此档案": "Delete this profile",
-  "添加词条": "Add term"
+  "添加词条": "Add term",
+  "长视频自动分段处理，重试可复用已完成分段；音频不上传。": "Long videos are processed in chunks. Retry resumes completed chunks; audio stays local.",
+  "暂停识别": "Pause recognition",
+  "分段进度 {{done}} / {{total}}": "Chunk progress {{done}} / {{total}}",
+  "识别已暂停，重试会复用已完成分段": "Recognition paused. Retry resumes completed chunks.",
+  "暂停处理": "Pause processing",
+  "处理已暂停，重试会复用已完成的音轨分段": "Processing paused. Retry resumes completed audio chunks."
 }

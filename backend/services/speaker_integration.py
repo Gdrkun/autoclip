@@ -12,7 +12,6 @@ import threading
 import uuid
 
 from backend.core.path_utils import get_data_directory
-from backend.services import child_guard
 from backend.services.speaker_subtitles import SpeakerDocument
 
 _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix='speaker-subtitles')
@@ -31,16 +30,26 @@ def status():
     common = python.is_file() and (models / 'campplus/config.yaml').is_file() and (models / 'fsmn-vad/model.pt').is_file()
     return {'ready': bool(common), 'sensevoice': bool(common and (models / 'sensevoice/model.pt').is_file()),
             'whisper': bool(common and (models / 'whisper-medium/model.bin').is_file()),
-            'whisper_model': 'medium', 'max_duration_seconds': 600}
+            'whisper_model': 'medium', 'max_duration_seconds': None, 'chunk_seconds': 180, 'resumable': True}
 
 
-def execute(video, *, backend='whisper', prompt='', subtitles=None):
+def execute(video, *, backend='whisper', prompt='', subtitles=None, on_progress=None):
     root = runtime_root()
     from backend.services.creator_library import asr_prompt
     prompt = asr_prompt(prompt)
     ready = status()
     if not ready.get(backend):
         raise ValueError('本地说话人模型未就绪')
+    from backend.services import long_audio, long_speaker
+    media = long_audio.probe(video)
+    if media['duration_ms'] > 600000:
+        try:
+            return long_speaker.execute(video, root, backend, prompt, subtitles, on_progress)
+        except subprocess.TimeoutExpired:
+            raise ValueError('本地字幕分段处理超时，已完成的分段已保留，可重试继续') from None
+        except ValueError as error:
+            name = 'SenseVoiceSmall' if backend == 'sensevoice' else 'Whisper'
+            raise ValueError(name + ' 分段字幕处理未完成，已完成的分段和原字幕已保留，可重试继续') from error
     python = root / 'venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     cli = Path(__file__).resolve().parents[2] / 'scripts' / 'speaker_poc.py'
     # __file__ is backend/services: the repository is parents[2].
@@ -62,16 +71,14 @@ def execute(video, *, backend='whisper', prompt='', subtitles=None):
     env.update(PYTHONUTF8='1', PYTHONDONTWRITEBYTECODE='1', HF_HUB_OFFLINE='1',
                TRANSFORMERS_OFFLINE='1', MODELSCOPE_OFFLINE='1', CUDA_VISIBLE_DEVICES='')
     log = runs / (output.name + '.log')
-    with log.open('w', encoding='utf-8') as stream:
-        process = subprocess.Popen(command, env=env, stdout=stream, stderr=subprocess.STDOUT)
-        child_guard.track(process, 'speaker-' + output.name)
-        try:
-            code = process.wait(timeout=1200)
-        except subprocess.TimeoutExpired:
-            child_guard.kill('speaker-' + output.name)
-            raise ValueError('说话人识别超时，请缩短视频后重试') from None
-    if code:
-        raise ValueError('本地字幕识别失败，请确认视频有声音且不超过十分钟')
+    try:
+        long_audio.run_child(command, env=env, log=log, timeout=1200)
+    except subprocess.TimeoutExpired:
+        raise ValueError('本地字幕分段处理超时，已完成的分段已保留，可重试继续') from None
+    except ValueError as error:
+        name = 'SenseVoiceSmall' if backend == 'sensevoice' else 'Whisper'
+        raise ValueError(name + ' 本地字幕识别失败，请检查视频音轨或重试；已有字幕已保留') from error
+
     document = SpeakerDocument.model_validate_json((output / 'speaker_subtitles.json').read_text(encoding='utf-8'))
     document = document.model_copy(update={'speakers': [speaker.model_copy(update={
         'color': ['#FF91BD', '#C0A5FF'][index % 2] if speaker.color == '#FFFFFF' else speaker.color})
@@ -118,7 +125,9 @@ def transcribe_local(video, output, selection, language='auto'):
     from backend.utils.speech_recognizer import SpeechRecognitionError
     try:
         backend = 'whisper' if selection.provider == 'whisper_local' else 'sensevoice'
-        document, folder = execute(video, backend=backend, prompt=selection.initial_prompt)
+        from backend.utils.transcription_progress import report
+        document, folder = execute(video, backend=backend, prompt=selection.initial_prompt,
+                                   on_progress=lambda done, total, reused: report(done, total))
         destination = Path(output) if output else video.with_suffix('.srt')
         destination.parent.mkdir(parents=True, exist_ok=True)
         # This path is only entered to create a missing transcript.
@@ -179,14 +188,35 @@ def _recognize(project_id, source, backend, prompt, reuse, job):
     try:
         if not source.exists():
             return
+        from backend.core.project_cancellation import bind
+        def progress(done, total, reused):
+            atomic_json(job_path(project_id), {**job, 'status': 'running', 'completed_chunks': done,
+                                               'total_chunks': total, 'reused_chunks': reused,
+                                               'percent': round(done * 100 / total)})
         atomic_json(job_path(project_id), {**job, 'status': 'running'})
-        document, _ = execute(source, backend=backend, prompt=prompt,
-                               subtitles=find_source_srt(project_id) if reuse else None)
-        if not source.exists():
-            return
-        atomic_json(sidecar(project_id), document.model_dump())
-        atomic_json(job_path(project_id), {**job, 'status': 'completed'})
+        with bind(project_id):
+            from backend.core.project_cancellation import checkpoint, JobStopped
+            try:
+                cancelled = json.loads(job_path(project_id).with_name('speaker_stop.json').read_text(encoding='utf-8'))
+            except (OSError, ValueError):
+                cancelled = {}
+            if cancelled.get('job_id') == job['job_id']:
+                raise JobStopped(project_id)
+            document, _ = execute(source, backend=backend, prompt=prompt,
+                                  subtitles=find_source_srt(project_id) if reuse else None, on_progress=progress)
+            checkpoint(project_id)
+            if not source.exists():
+                return
+            atomic_json(sidecar(project_id), document.model_dump())
+            atomic_json(job_path(project_id), {**job, 'status': 'completed'})
     except Exception as exc:
+        from backend.core.project_cancellation import JobStopped, ProjectDeleted
+        if isinstance(exc, ProjectDeleted):
+            return
+        if isinstance(exc, JobStopped):
+            if source.exists():
+                atomic_json(job_path(project_id), {**job, 'status': 'cancelled', 'error': '识别已暂停，重试会复用已完成分段'})
+            return
         if source.exists():
             atomic_json(job_path(project_id), {**job, 'status': 'failed', 'error': str(exc) if isinstance(exc, ValueError) else '本地字幕识别失败，请重试'})
     finally:
