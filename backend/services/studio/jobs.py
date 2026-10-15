@@ -454,15 +454,17 @@ def ensure_project_thumbnail(project_id):
         logger.warning('Project thumbnail generation failed', exc_info=True)
 
 
-def run_content(project_id, video):
+def run_content(project_id, video, instruction=''):
     """Run the existing content pipeline in this worker, without a second broker queue."""
     from backend.tasks.processing import process_video_pipeline
     srt = video.parent / 'input.srt'
-    result = process_video_pipeline.apply(kwargs={
+    kwargs = {
         'project_id': project_id, 'input_video_path': str(video),
         'input_srt_path': str(srt) if srt.exists() else None,
         'clips_only': True,  # studio renders from the source: no clustering, no per-clip re-encode
-    }, throw=True).get()
+    }
+    kwargs['selection_instruction'] = instruction
+    result = process_video_pipeline.apply(kwargs=kwargs, throw=True).get()
     if not result or not result.get('success'):
         message = (result or {}).get('error') or '内容切片未完成，请检查语音与文字模型设置后重试'
         failure = (result or {}).get('result') or {}
@@ -580,8 +582,9 @@ def _content_drafts(project_id, plan, video):
     """Create drafts once from the selected content route, before platform derivation."""
     route = plan.get('recommended_analysis', 'subtitle')
     prefs = Preferences.model_validate(plan['preferences'])
+    instruction = plan.get('overrides', {}).get('instruction', '')
     if route == 'subtitle' or prefs.goal == 'content':
-        clips = run_content(project_id, video)
+        clips = run_content(project_id, video, instruction=instruction) if instruction else run_content(project_id, video)
         from backend.utils.text_processor import TextProcessor
         picked = []
         for clip in clips:
@@ -621,7 +624,7 @@ def _content_drafts(project_id, plan, video):
     if not intelligence.ready():
         raise ValueError('请先在设置中配置视觉理解模型')
     try:
-        events, coverage = analyze(video, prefs)
+        events, coverage = analyze(video, prefs, instruction=instruction) if instruction else analyze(video, prefs)
         drafts = make_drafts(events, prefs, plan.get('overrides', {}).get('instruction', ''), source_duration=intelligence._probe(video).get('duration'))
     except ValueError as error:
         # A silent source that the visual route could not cut (RC156 Win QA #19): explain the missing
@@ -1656,7 +1659,7 @@ def _produce_selected(project_id, plan):
                         raise subtitle_error
                     if subtitle_clips is None:
                         try:
-                            subtitle_clips = run_content(project_id, video)
+                            subtitle_clips = run_content(project_id, video, instruction=instruction) if instruction else run_content(project_id, video)
                         except Exception as error:
                             subtitle_error = error
                             raise

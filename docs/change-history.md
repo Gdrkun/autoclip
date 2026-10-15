@@ -96,3 +96,13 @@
 - 本次变更：按现有 AutoClip 设计配色改为带标题/数量的面板、人物名称颜色卡片、统一字号位置滑杆、逐句字幕卡片和图标排序/补句/删除操作；识别设置折叠，时间/正文/归属分区，播放中的字幕高亮，加入空字幕提示。保留原识别/保存/字幕时间与导出数据契约，同步七条新文案的八语翻译。
 - 影响范围：frontend/src/features/studio/SpeakerSubtitles.tsx、新 speaker-subtitles.css、八语 locale、现有 speaker-caption-editing 测试的样式模块 mock；后端、视频、模型、用户配置和项目数据未修改。
 - 验证方式：原字幕编辑定向 4 项通过；完整 frontend 门禁 lint/types/298 tests/build 通过，无 sourcemap 上传。独立 Edge 合成草稿亲验桌面/深色/390px 窄屏，测量无横向溢出并查看截图；实际改名、文本、归属、上下行、字号、行后补句、移动/排序/删除和颜色关闭，保存/刷新保留，原始数据仅在私有验证目录。未执行识别、高光分析或付费调用；此次仅前端外观，未重跑全量 backend 或桌面安装包验收，不作发布验收声明。
+
+
+## 2026-10-14 22:56
+
+- 类型：新增、修复。
+- 涉及功能：AI 选片内容偏好、娱乐类优先选择、导入要求传递。
+- 原功能：导入页可以写制作要求，但字幕内容选片未向实际 task/模型传递，导致要求主要影响快速判断或文案；一次选片和回退大纲/时间/评分使用通用标准。
+- 本次变更：添加唱歌/搞笑/网络流行梗/迷因快捷项及可编辑要求框；保留原 instruction 字段，贯通 Studio 自动/确认制作、task、适配器、一次选片和回退的大纲/时间定位/LLM 评分。明确兴趣匹配与完整上下文，保留真实时间/ID/schema，尊重排除项且不编造梗；常规重试读取保存要求，显式空要求不会恢复旧偏好。偏好哈希区分时间线缓存，保留旧诊断，默认空偏好保留原行为；八语文案同步。
+- 影响范围：backend/services/studio/jobs.py、tasks/processing.py、simple_pipeline_adapter.py、pipeline/clip_finder/step1_outline/step2_timeline/step3_scoring/scoring_backend 及新 selection_preferences；frontend 的 CreativeImport、新 SelectionPreferences/selectionPreferencePresets/CSS、八语目录、前后端回归及使用说明。没有迁移数据库、修改用户配置/供应商或开启额外模型路线。
+- 验证方式：修复前两项偏好传递回归失败；修复后模型边界/缓存/旧失败路线等 145 passed、Studio 导入 74 passed，最后语义说明更新后偏好 14 项复验通过；全 backend 正确性 lint 通过。完整 frontend lint/types/300 tests/build 通过，新增表单断言再定向 5 passed。独立 Edge 四类组合+自由文本，并捕获真实生成按钮 multipart，要求完整到达 instruction 字段；所有写请求拦截，不下载素材或调用外部模型。初次检查暴露旧时间线构造默认缓存属性及 Windows 模块大小写相撞，修复后原失败组和构建通过，首次报告保留。未调用用户配置的真实模型评分、不作唱歌/梗命中准确率保证；全量 backend 既有失败/超时与桌面双平台验收未通过/未完成，.env 哈希未变。未提交或推送本次修改。

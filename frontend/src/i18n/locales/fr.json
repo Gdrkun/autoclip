@@ -1692,5 +1692,19 @@
   "给说话人命名，颜色会跟随对应字幕。": "Nommez chaque personne ; sa couleur suit ses sous-titres.",
   "字幕样式与位置": "Style et position",
   "逐句校对": "Relire les sous-titres",
-  "还没有字幕，播放视频后添加第一句。": "Aucun sous-titre. Lancez la vidéo et ajoutez la première ligne."
+  "还没有字幕，播放视频后添加第一句。": "Aucun sous-titre. Lancez la vidéo et ajoutez la première ligne.",
+  "唱歌": "Chant",
+  "搞笑": "Humour",
+  "网络流行梗": "Références populaires",
+  "迷因": "Mèmes",
+  "选片偏好": "Préférences de sélection",
+  "你想优先看什么？": "Que faut-il privilégier ?",
+  "选填": "Facultatif",
+  "要求会用于 AI 选段和评分；可以组合，也可以直接写。": "Votre demande guide la sélection et la notation. Combinez les options ou écrivez vos critères.",
+  "优先保留唱歌片段，保留完整乐句与必要的互动。": "Privilégiez le chant, avec des phrases musicales complètes et les interactions utiles.",
+  "优先保留搞笑互动，保留铺垫、包袱和对方反应。": "Privilégiez les échanges drôles, avec la mise en place, la chute et les réactions.",
+  "优先保留网络流行梗，保留理解梗所需的上下文。": "Privilégiez les références populaires en conservant le contexte nécessaire.",
+  "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Privilégiez les mèmes sans inventer leur origine ou leur sens.",
+  "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "Ex. : chant et humour plutôt que bavardage ; gardez la mise en place et les chutes.",
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Le chant ou les blagues visuelles absents des sous-titres peuvent être manqués ; seules les preuves fournies servent au choix."
 }

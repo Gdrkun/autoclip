@@ -1,0 +1,17 @@
+.studio-selection-preferences { margin-top: 20px; padding: 16px; border: 1px solid var(--ac-line); border-radius: 12px; background: var(--ac-bg); }
+.studio-selection-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.studio-selection-head label { font-size: 13px; font-weight: 600; color: var(--ac-ink); }
+.studio-selection-head > span { font-size: 11px; color: var(--ac-muted); }
+.studio-selection-preferences > p { font-size: 12px; color: var(--ac-sub); margin: 6px 0 12px; line-height: 1.6; }
+.studio-selection-presets { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.studio-selection-presets button { padding: 6px 12px; border-radius: 7px; border: 1px solid var(--ac-line); background: var(--ac-card); font-family: inherit; font-size: 12px; color: var(--ac-sub); cursor: pointer; }
+.studio-selection-presets button:hover { border-color: var(--ac-muted); }
+.studio-selection-presets button[aria-pressed="true"] { background: color-mix(in srgb, var(--ac-accent) 7%, var(--ac-card)); border-color: color-mix(in srgb, var(--ac-accent) 35%, var(--ac-line)); color: var(--ac-accent); }
+.studio-selection-presets button:disabled { opacity: .5; cursor: default; }
+.studio-selection-preferences textarea { display: block; width: 100%; min-height: 88px; resize: vertical; border: 1px solid var(--ac-line); border-radius: 8px; padding: 10px 12px; background: var(--ac-card); color: var(--ac-ink); font: inherit; font-size: 13px; line-height: 1.7; }
+.studio-selection-preferences textarea::placeholder { color: var(--ac-muted); }
+.studio-selection-preferences textarea:focus { outline: none; border-color: var(--ac-accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ac-accent) 10%, transparent); }
+.studio-selection-presets button:focus-visible { outline: 2px solid var(--ac-accent); outline-offset: 3px; }
+.studio-selection-note { display: flex; gap: 12px; justify-content: space-between; margin-top: 8px; color: var(--ac-muted); font-size: 11px; line-height: 1.6; }
+.studio-selection-note > span:last-child { flex: 0 0 auto; font-family: var(--ac-font-mono); }
+@media(max-width: 500px) { .studio-selection-preferences { padding: 14px; }.studio-selection-note { flex-wrap: wrap; } }

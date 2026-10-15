@@ -1692,5 +1692,19 @@
   "给说话人命名，颜色会跟随对应字幕。": "Asigna un nombre; su color se aplica a sus subtítulos.",
   "字幕样式与位置": "Estilo y posición",
   "逐句校对": "Revisar subtítulos",
-  "还没有字幕，播放视频后添加第一句。": "Aún no hay subtítulos. Reproduce el vídeo y añade la primera línea."
+  "还没有字幕，播放视频后添加第一句。": "Aún no hay subtítulos. Reproduce el vídeo y añade la primera línea.",
+  "唱歌": "Canto",
+  "搞笑": "Humor",
+  "网络流行梗": "Referencias virales",
+  "迷因": "Memes",
+  "选片偏好": "Preferencias de selección",
+  "你想优先看什么？": "¿Qué quieres priorizar?",
+  "选填": "Opcional",
+  "要求会用于 AI 选段和评分；可以组合，也可以直接写。": "Tu petición guía la selección y puntuación. Combina opciones o escribe tus criterios.",
+  "优先保留唱歌片段，保留完整乐句与必要的互动。": "Prioriza el canto, conservando frases musicales completas y la interacción pertinente.",
+  "优先保留搞笑互动，保留铺垫、包袱和对方反应。": "Prioriza interacciones divertidas, conservando la preparación, el remate y las reacciones.",
+  "优先保留网络流行梗，保留理解梗所需的上下文。": "Prioriza referencias virales y conserva el contexto necesario para entenderlas.",
+  "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Prioriza memes sin inventar su origen o significado.",
+  "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "Ej.: canto, humor y memes sobre charla casual; conserva preparación y remates completos.",
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Se elige contenido real; pueden perderse cantos o bromas visuales ausentes de los subtítulos."
 }

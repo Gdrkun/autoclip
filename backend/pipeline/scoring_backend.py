@@ -37,9 +37,10 @@ final_score 必须是 0 到 1 的有限数值；没有足够内容依据时不�
 class LLMScoringBackend:
     """Current LLM scoring with a consistent schema for every category prompt."""
 
-    def __init__(self, client: Any, prompt: str):
+    def __init__(self, client: Any, prompt: str, selection_instruction: str = ''):
         self.client = client
-        self.prompt = prompt + SCORING_CONTRACT
+        from .selection_preferences import selection_prompt
+        self.prompt = prompt + SCORING_CONTRACT + selection_prompt(selection_instruction)
 
     def score(self, clips: Sequence[Dict[str, Any]]) -> List[ScoreResult]:
         response = self.client.call_with_retry(self.prompt, list(clips))

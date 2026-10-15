@@ -1692,5 +1692,19 @@
   "给说话人命名，颜色会跟随对应字幕。": "Nomeie cada pessoa; sua cor acompanha as legendas.",
   "字幕样式与位置": "Estilo e posição",
   "逐句校对": "Revisar legendas",
-  "还没有字幕，播放视频后添加第一句。": "Ainda não há legendas. Reproduza o vídeo e adicione a primeira linha."
+  "还没有字幕，播放视频后添加第一句。": "Ainda não há legendas. Reproduza o vídeo e adicione a primeira linha.",
+  "唱歌": "Canto",
+  "搞笑": "Humor",
+  "网络流行梗": "Referências virais",
+  "迷因": "Memes",
+  "选片偏好": "Preferências de seleção",
+  "你想优先看什么？": "O que devemos priorizar?",
+  "选填": "Opcional",
+  "要求会用于 AI 选段和评分；可以组合，也可以直接写。": "Seu pedido orienta a seleção e a pontuação. Combine opções ou escreva seus critérios.",
+  "优先保留唱歌片段，保留完整乐句与必要的互动。": "Priorize o canto, mantendo frases musicais completas e a interação pertinente.",
+  "优先保留搞笑互动，保留铺垫、包袱和对方反应。": "Priorize interações engraçadas, mantendo a preparação, a piada e as reações.",
+  "优先保留网络流行梗，保留理解梗所需的上下文。": "Priorize referências virais e mantenha o contexto necessário para entendê-las.",
+  "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Priorize memes sem inventar sua origem ou significado.",
+  "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "Ex.: canto, humor e memes em vez de conversa casual; mantenha preparação e piadas completas.",
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "A seleção usa conteúdo real; canto ou piadas visuais ausentes das legendas podem passar despercebidos."
 }

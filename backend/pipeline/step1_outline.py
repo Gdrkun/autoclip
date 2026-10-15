@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 class OutlineExtractor:
     """大纲提取器（重构版）"""
     
-    def __init__(self, metadata_dir: Path = None, prompt_files: Dict = None):
+    def __init__(self, metadata_dir: Path = None, prompt_files: Dict = None, selection_instruction: str = ''):
         self.llm_client = LLMClient()
         self.text_processor = TextProcessor()
         
@@ -38,6 +38,8 @@ class OutlineExtractor:
         # 加载提示词
         with open(prompt_files['outline'], 'r', encoding='utf-8') as f:
             self.outline_prompt = f.read()
+        from .selection_preferences import selection_prompt
+        self.outline_prompt += selection_prompt(selection_instruction)
             
         # 创建用于存放中间文本块的目录
         self.chunks_dir = self.metadata_dir / "step1_chunks"
@@ -263,14 +265,14 @@ class OutlineExtractor:
         with open(input_path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
-def run_step1_outline(srt_path: Path, metadata_dir: Path = None, output_path: Optional[Path] = None, prompt_files: Dict = None) -> List[Dict]:
+def run_step1_outline(srt_path: Path, metadata_dir: Path = None, output_path: Optional[Path] = None, prompt_files: Dict = None, selection_instruction: str = '') -> List[Dict]:
     """
     运行Step 1: 大纲提取
     """
     if metadata_dir is None:
         metadata_dir = METADATA_DIR
         
-    extractor = OutlineExtractor(metadata_dir, prompt_files)
+    extractor = OutlineExtractor(metadata_dir, prompt_files, selection_instruction=selection_instruction)
     outlines = extractor.extract_outline(srt_path)
     
     if output_path is None:

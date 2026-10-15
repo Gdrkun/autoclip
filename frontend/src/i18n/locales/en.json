@@ -1692,5 +1692,19 @@
   "给说话人命名，颜色会跟随对应字幕。": "Name each speaker; their color follows their captions.",
   "字幕样式与位置": "Caption style & position",
   "逐句校对": "Review captions",
-  "还没有字幕，播放视频后添加第一句。": "No captions yet. Play the video and add the first line."
+  "还没有字幕，播放视频后添加第一句。": "No captions yet. Play the video and add the first line.",
+  "唱歌": "Singing",
+  "搞笑": "Humor",
+  "网络流行梗": "Internet trends",
+  "迷因": "Memes",
+  "选片偏好": "Clip selection preferences",
+  "你想优先看什么？": "What should we prioritize?",
+  "选填": "Optional",
+  "要求会用于 AI 选段和评分；可以组合，也可以直接写。": "Your request guides AI selection and scoring. Combine options or write your own.",
+  "优先保留唱歌片段，保留完整乐句与必要的互动。": "Prioritize singing, keeping complete musical phrases and relevant interaction.",
+  "优先保留搞笑互动，保留铺垫、包袱和对方反应。": "Prioritize funny interactions, keeping the setup, punchline and reactions.",
+  "优先保留网络流行梗，保留理解梗所需的上下文。": "Prioritize internet references, keeping the context needed to understand them.",
+  "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Prioritize memes without inventing their origins or meanings.",
+  "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "For example: singing, humor and memes over small talk; keep setups and complete jokes.",
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Selection uses actual material; singing or visual jokes absent from captions may be missed."
 }

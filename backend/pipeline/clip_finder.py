@@ -170,11 +170,13 @@ def _window_count(profile: DurationProfile, share: float) -> tuple[int, int]:
 
 
 def find_clips(srt_entries: list[dict[str, Any]], call, *, threshold: float, metadata_dir: Path | None = None,
-               window: WindowSize | None = None) -> list[dict[str, Any]]:
+               window: WindowSize | None = None, selection_instruction: str = '') -> list[dict[str, Any]]:
     """Titled clips (legacy `step4_titles.json` shape) from one pass over the transcript.
 
     `window` defaults to `window_size()` (smaller windows for local models)."""
     from .concurrency import map_chunks
+    from .selection_preferences import selection_prompt
+    preference_prompt = selection_prompt(selection_instruction)
     rows = [{'start': to_seconds(e['start_time']), 'end': to_seconds(e['end_time']), 'text': str(e.get('text') or '').strip()}
             for e in srt_entries if str(e.get('text') or '').strip()]
     if not rows:
@@ -190,6 +192,7 @@ def find_clips(srt_entries: list[dict[str, Any]], call, *, threshold: float, met
         count_lo, count_hi = _window_count(profile, share)
         prompt = PROMPT.format(min_sec=profile.min_clip_sec, max_sec=profile.max_clip_sec, target_lo=profile.target_clip_sec[0],
                                target_hi=profile.target_clip_sec[1], count_lo=count_lo, count_hi=count_hi)
+        prompt += preference_prompt
         payload = {'rows': '\n'.join(f"{i}|{_clock(rows[i]['start'])}|{rows[i]['text']}" for i in range(first, last + 1))}
         for attempt in range(2):
             try:

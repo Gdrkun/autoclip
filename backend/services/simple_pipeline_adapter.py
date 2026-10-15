@@ -219,7 +219,7 @@ class SimplePipelineAdapter:
             f"没有可用的 LLM 提供商（当前选择：{name} · {model}），缺少 API Key 或本地服务地址。",
         )
 
-    def _find_clips_in_one_pass(self, srt_path: Path, metadata_dir: Path):
+    def _find_clips_in_one_pass(self, srt_path: Path, metadata_dir: Path, selection_instruction: str = ''):
         """Titled clips from one model pass over the whole transcript, or None to use the legacy steps."""
         from backend.pipeline.clip_finder import find_clips
         from backend.pipeline.step3_scoring import resolve_min_score_threshold
@@ -230,14 +230,14 @@ class SimplePipelineAdapter:
         try:
             entries = TextProcessor.parse_srt(Path(srt_path))
             with llm_usage.timed("clip_finder"):
-                return find_clips(entries, text_json, threshold=resolve_min_score_threshold(), metadata_dir=metadata_dir)
+                return find_clips(entries, text_json, threshold=resolve_min_score_threshold(), metadata_dir=metadata_dir, selection_instruction=selection_instruction)
         except ProjectDeleted:
             raise
         except Exception as error:  # noqa: BLE001 - the legacy steps still work with any model
             logger.warning("一次挑片不可用，改用分步分析: %s", error)
             return None
 
-    async def process_project_sync(self, input_video_path: str, input_srt_path: str, clips_only: bool = False) -> Dict[str, Any]:
+    async def process_project_sync(self, input_video_path: str, input_srt_path: str, clips_only: bool = False, selection_instruction: str = '') -> Dict[str, Any]:
         """
         同步处理项目 - 使用简化的进度系统
         
@@ -269,6 +269,9 @@ class SimplePipelineAdapter:
             clips_output_dir.mkdir(parents=True, exist_ok=True)
             collections_output_dir.mkdir(parents=True, exist_ok=True)
             prompt_files = self._prompt_files(project_dir)
+            from backend.pipeline.selection_preferences import normalize_instruction
+            selection_instruction = normalize_instruction(selection_instruction)
+            preference_kwargs = {'selection_instruction': selection_instruction} if selection_instruction else {}
             
             # 阶段1: 素材准备。先确认 LLM 可用，否则后面每一步都是白跑
             from backend.core.project_cancellation import checkpoint
@@ -307,7 +310,7 @@ class SimplePipelineAdapter:
 
             # 快速出片：一次挑片（整段字幕一次给模型）；不可用时回退旧的四步
             checkpoint(self.project_id)
-            titled_clips = self._find_clips_in_one_pass(srt_path, metadata_dir) if clips_only else None
+            titled_clips = self._find_clips_in_one_pass(srt_path, metadata_dir, **preference_kwargs) if clips_only else None
             if titled_clips is not None:
                 outlines, timeline_data, scored_clips = [], [], titled_clips
                 emit_progress(self.project_id, "HIGHLIGHT", "片段挑选完成", subpercent=40)
@@ -315,7 +318,7 @@ class SimplePipelineAdapter:
                 # Step 1: 大纲提取（字幕为空 / 模型全部失败 / 无法解析时由 step1 自己抛 PipelineFailure）
                 logger.info("执行Step 1: 大纲提取")
                 llm_usage.set_stage("outline")
-                outlines = run_step1_outline(srt_path, metadata_dir=metadata_dir, prompt_files=prompt_files)
+                outlines = run_step1_outline(srt_path, metadata_dir=metadata_dir, prompt_files=prompt_files, **preference_kwargs)
                 emit_progress(self.project_id, "SUBTITLE", "字幕处理完成", subpercent=100)  # never behind the transcription band
             
                 # 阶段3: 内容分析
@@ -328,6 +331,7 @@ class SimplePipelineAdapter:
                     metadata_dir / "step1_outline.json",
                     metadata_dir=metadata_dir,
                     prompt_files=prompt_files,
+                    **preference_kwargs,
                 )
                 if not timeline_data:
                     # Step 2 normally raises its observed failure. Keep the legacy
@@ -342,6 +346,7 @@ class SimplePipelineAdapter:
                     metadata_dir / "step2_timeline.json",
                     metadata_dir=metadata_dir,
                     prompt_files=prompt_files,
+                    **preference_kwargs,
                 )
                 if not scored_clips:
                     from backend.pipeline.step3_scoring import resolve_min_score_threshold

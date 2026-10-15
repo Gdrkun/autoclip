@@ -20,8 +20,10 @@ logger = logging.getLogger(__name__)
 
 class TimelineExtractor:
     """从大纲和SRT字幕中提取精确时间线"""
+
+    selection_cache_suffix = ''
     
-    def __init__(self, metadata_dir: Path = None, prompt_files: Dict = None):
+    def __init__(self, metadata_dir: Path = None, prompt_files: Dict = None, selection_instruction: str = ''):
         self.llm_client = LLMClient()
         self.text_processor = TextProcessor()
         
@@ -34,6 +36,9 @@ class TimelineExtractor:
         prompt_files_to_use = prompt_files if prompt_files is not None else PROMPT_FILES
         with open(prompt_files_to_use['timeline'], 'r', encoding='utf-8') as f:
             self.timeline_prompt = f.read()
+        from .selection_preferences import selection_prompt, cache_suffix
+        self.timeline_prompt += selection_prompt(selection_instruction)
+        self.selection_cache_suffix = cache_suffix(selection_instruction)
             
         # SRT块的目录
         self.srt_chunks_dir = self.metadata_dir / "step1_srt_chunks"
@@ -123,7 +128,7 @@ class TimelineExtractor:
                 chunk_end_time = srt_chunk_data[-1]['end_time']
 
                 srt_entries = srt_chunk_data
-                llm_cache_path = self.llm_raw_output_dir / f"chunk_{chunk_index}.txt"
+                llm_cache_path = self.llm_raw_output_dir / f"chunk_{chunk_index}{self.selection_cache_suffix}.txt"
                 cached = llm_cache_path.exists()
                 chunk_report["source"] = "cache" if cached else "model"
                 input_data = {
@@ -154,7 +159,7 @@ class TimelineExtractor:
                                 logger.error("块 %s 模型调用失败: %s", chunk_index, call_error)
                                 break
                             if raw_response:
-                                cache_file = self.llm_raw_output_dir / f"chunk_{chunk_index}_attempt_{retry_count}.txt"
+                                cache_file = self.llm_raw_output_dir / f"chunk_{chunk_index}{self.selection_cache_suffix}_attempt_{retry_count}.txt"
                                 cache_file.write_text(raw_response, encoding='utf-8')
                         if not raw_response:
                             chunk_report["outcome"] = "empty_response"
@@ -413,14 +418,14 @@ class TimelineExtractor:
         with open(input_path, 'r', encoding='utf-8') as f:
             return json.load(f)
 
-def run_step2_timeline(outline_path: Path, metadata_dir: Path = None, output_path: Optional[Path] = None, prompt_files: Dict = None) -> List[Dict]:
+def run_step2_timeline(outline_path: Path, metadata_dir: Path = None, output_path: Optional[Path] = None, prompt_files: Dict = None, selection_instruction: str = '') -> List[Dict]:
     """
     运行Step 2: 时间点提取
     """
     if metadata_dir is None:
         metadata_dir = METADATA_DIR
         
-    extractor = TimelineExtractor(metadata_dir, prompt_files)
+    extractor = TimelineExtractor(metadata_dir, prompt_files, selection_instruction=selection_instruction)
     
     # 加载大纲
     with open(outline_path, 'r', encoding='utf-8') as f:

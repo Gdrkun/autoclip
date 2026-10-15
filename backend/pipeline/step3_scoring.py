@@ -41,7 +41,7 @@ class ClipScorer:
     """内容评分器"""
     
     def __init__(self, prompt_files: Dict = None, metadata_dir: Path = None,
-                 scoring_backend: Optional[ScoringBackend] = None):
+                 scoring_backend: Optional[ScoringBackend] = None, selection_instruction: str = ''):
         self.text_processor = TextProcessor()
         self.metadata_dir = Path(metadata_dir) if metadata_dir else None
         
@@ -50,7 +50,7 @@ class ClipScorer:
         with open(prompt_files_to_use['recommendation'], 'r', encoding='utf-8') as f:
             self.recommendation_prompt = f.read()
 
-        self.scoring_backend = scoring_backend if scoring_backend is not None else LLMScoringBackend(LLMClient(), self.recommendation_prompt)
+        self.scoring_backend = scoring_backend if scoring_backend is not None else LLMScoringBackend(LLMClient(), self.recommendation_prompt, selection_instruction=selection_instruction)
 
         from .quality import load_srt_chunks
         self._srt_entries = load_srt_chunks(self.metadata_dir) if self.metadata_dir else []
@@ -151,7 +151,7 @@ class ClipScorer:
         logger.info(f"评分结果已保存到: {output_path}")
 
 def run_step3_scoring(timeline_path: Path, metadata_dir: Path = None, output_path: Optional[Path] = None, prompt_files: Dict = None,
-                      scoring_backend: Optional[ScoringBackend] = None) -> List[Dict]:
+                      scoring_backend: Optional[ScoringBackend] = None, selection_instruction: str = '') -> List[Dict]:
     """
     运行Step 3: 内容评分与筛选
     
@@ -172,7 +172,7 @@ def run_step3_scoring(timeline_path: Path, metadata_dir: Path = None, output_pat
 
     from .quality import load_profile, select_clips, save_report
 
-    scorer = ClipScorer(prompt_files, metadata_dir=metadata_dir, scoring_backend=scoring_backend)
+    scorer = ClipScorer(prompt_files, metadata_dir=metadata_dir, scoring_backend=scoring_backend, selection_instruction=selection_instruction)
     scored_clips = scorer.score_clips(timeline_data)
 
     profile = load_profile(metadata_dir)
