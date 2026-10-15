@@ -1685,5 +1685,12 @@
   "按时间排序": "Sort by time",
   "在此后补句": "Insert after this",
   "100% 为默认字号；位置按画面百分比。": "100% is the default size; positions are percentages of the frame.",
-  "排序不改变字幕时间；播放顺序由时间决定。": "Reordering keeps timestamps; playback follows the timestamps."
+  "排序不改变字幕时间；播放顺序由时间决定。": "Reordering keeps timestamps; playback follows the timestamps.",
+  "条字幕": "captions",
+  "识别设置": "Recognition settings",
+  "人物与颜色": "Speakers & colors",
+  "给说话人命名，颜色会跟随对应字幕。": "Name each speaker; their color follows their captions.",
+  "字幕样式与位置": "Caption style & position",
+  "逐句校对": "Review captions",
+  "还没有字幕，播放视频后添加第一句。": "No captions yet. Play the video and add the first line."
 }

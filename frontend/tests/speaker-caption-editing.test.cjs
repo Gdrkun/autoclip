@@ -44,7 +44,7 @@ test('actual editor controls change layout and reorder or insert cues without re
     react: { useEffect() {}, useRef: current => ({ current }), useState: current => [current, () => {}] },
     'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x }, '../../ui': { Btn: 'button' },
     '../../services/api': { default: { defaults: { baseURL: '/api/v1' }, get: () => assert.fail('no recognition') } },
-    './api': { errorText: String }, './speakerSubtitleEditing': editing,
+    './api': { errorText: String }, './speakerSubtitleEditing': editing, './speaker-subtitles.css': {},
   }).default
   const nodes = value => !value || typeof value !== 'object' ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)]
   let next, layout

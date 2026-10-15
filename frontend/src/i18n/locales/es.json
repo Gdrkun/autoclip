@@ -1685,5 +1685,12 @@
   "按时间排序": "Ordenar por tiempo",
   "在此后补句": "Insertar después",
   "100% 为默认字号；位置按画面百分比。": "100% es el tamaño predeterminado; la posición se indica como porcentaje del cuadro.",
-  "排序不改变字幕时间；播放顺序由时间决定。": "Cambiar el orden conserva los tiempos; la reproducción sigue esos tiempos."
+  "排序不改变字幕时间；播放顺序由时间决定。": "Cambiar el orden conserva los tiempos; la reproducción sigue esos tiempos.",
+  "条字幕": "subtítulos",
+  "识别设置": "Ajustes de reconocimiento",
+  "人物与颜色": "Personas y colores",
+  "给说话人命名，颜色会跟随对应字幕。": "Asigna un nombre; su color se aplica a sus subtítulos.",
+  "字幕样式与位置": "Estilo y posición",
+  "逐句校对": "Revisar subtítulos",
+  "还没有字幕，播放视频后添加第一句。": "Aún no hay subtítulos. Reproduce el vídeo y añade la primera línea."
 }

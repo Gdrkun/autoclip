@@ -1685,5 +1685,12 @@
   "按时间排序": "Ordenar por tempo",
   "在此后补句": "Inserir depois",
   "100% 为默认字号；位置按画面百分比。": "100% é o tamanho padrão; as posições são percentuais do quadro.",
-  "排序不改变字幕时间；播放顺序由时间决定。": "Reordenar mantém os tempos; a reprodução segue os tempos."
+  "排序不改变字幕时间；播放顺序由时间决定。": "Reordenar mantém os tempos; a reprodução segue os tempos.",
+  "条字幕": "legendas",
+  "识别设置": "Configurações de reconhecimento",
+  "人物与颜色": "Pessoas e cores",
+  "给说话人命名，颜色会跟随对应字幕。": "Nomeie cada pessoa; sua cor acompanha as legendas.",
+  "字幕样式与位置": "Estilo e posição",
+  "逐句校对": "Revisar legendas",
+  "还没有字幕，播放视频后添加第一句。": "Ainda não há legendas. Reproduza o vídeo e adicione a primeira linha."
 }
