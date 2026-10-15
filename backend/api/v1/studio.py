@@ -22,7 +22,7 @@ from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, E
 router = APIRouter()
 
 
-from backend.services import creator_library
+from backend.services import creator_library, singing_detection
 
 
 @router.get('/creator-library')
@@ -57,6 +57,16 @@ class SelectionFeedbackRequest(BaseModel):
 def selection_feedback(project_id: str, draft_id: str, body: SelectionFeedbackRequest, db: Session = Depends(get_db)):
     project_or_404(project_id, db)
     return call(creator_library.record_feedback, project_id, draft_id, body.direction, body.category, body.note).model_dump()
+
+
+@router.get('/singing/status')
+def singing_status():
+    return singing_detection.status()
+
+
+@router.post('/singing/prepare')
+def singing_prepare():
+    return call(singing_detection.prepare)
 
 
 class BackgroundRequest(BaseModel):
@@ -199,6 +209,7 @@ async def import_visual(
     duration: Optional[int] = Form(None, ge=10, le=120),
     instruction: str = Form('', max_length=1000),
     background_query: str = Form('', max_length=200),
+    detect_singing: bool = Form(False),
     platforms: list[str] = Form(['douyin']),
     auto_start: bool = Form(False),
     portrait_style: Literal['auto', 'interview', 'podcast'] = Form('auto'),
@@ -238,7 +249,7 @@ async def import_visual(
         finally:
             await subtitle.close()
     prefs = ImportOptions(
-        goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction, background_query=background_query,
+        goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction, background_query=background_query, detect_singing=detect_singing,
         platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
         recommended_template=recommended_template,
         branding={'outro_enabled': brand_outro_enabled},

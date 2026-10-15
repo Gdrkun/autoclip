@@ -16,6 +16,7 @@ import { defaultImportOptions, ImportOptions } from './types'
 import ImportPreferences from './ImportPreferences'
 import SelectionPreferences from './SelectionPreferences'
 import CreatorLibrary from './CreatorLibrary'
+import SingingOptions from './SingingOptions'
 import { speechApi } from '../../services/api'
 import { repairDestination, submissionBlock, visibleIssues, type ImportReadiness, type ReadinessIssue } from './importReadiness'
 import './studio.css'
@@ -127,6 +128,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       const body = new FormData()
       body.append('goal', options.goal); body.append('language', options.language); body.append('instruction', options.instruction)
       if (options.background_query?.trim()) body.append('background_query', options.background_query.trim())
+      if (options.detect_singing) body.append('detect_singing', 'true')
       platforms.forEach(platform => body.append('platforms', platform))
       body.append('auto_start', 'true')
       body.append('portrait_style', options.portrait_style || 'auto')
@@ -162,7 +164,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       {!templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       {templatesOn && options.html_template === 'classic' && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       <SelectionPreferences value={options.instruction} backgroundQuery={options.background_query || ''} disabled={busy} onBackgroundChange={background_query => setOptions({...options, background_query})} onChange={instruction => setOptions({...options, instruction})}/>
-      <div className="creator-import-tools"><CreatorLibrary query={options.background_query || ''}/></div>
+      <div className="creator-import-tools"><CreatorLibrary query={options.background_query || ''}/><SingingOptions enabled={!!options.detect_singing} onChange={detect_singing=>setOptions({...options, detect_singing})} disabled={busy}/></div>
       {issues.length > 0 && <div className="studio-readiness" role="status">
         {issues.map(item => <div className="studio-readiness-row" key={item.key}>
           <StatusDot tone={item.code === 'whisper_installing' || item.code === 'whisper_model_downloading' ? 'accent' : 'muted'} label={issueCopy(item)} />
@@ -172,7 +174,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       <div className="studio-row studio-import-bottom"><div><span className="studio-muted">{t('会按所选平台自动制作，数量由素材内容决定。')}</span><button className="studio-link studio-preferences-link" disabled={busy} onClick={()=>setPreferences(true)}>{t("高级偏好")}</button></div><Btn variant="cta" loading={busy} onClick={submit}>{busy?t("正在生成"):t("生成成片")}</Btn></div>
       {error&&<p className="studio-error" role="alert">{error}</p>}
     </div>
-    <Dialog open={preferences} onClose={()=>setPreferences(false)} title={t("制作偏好")} description={t("默认由 AI 匹配。你指定的选项优先，生成后也可以修改。")} footer={<div className="studio-actions"><Btn onClick={()=>{setOptions({...defaultImportOptions,instruction:options.instruction,background_query:options.background_query});setSubtitle(null);setBrowser('')}}>{t("恢复自动")}</Btn><Btn variant="cta" onClick={()=>setPreferences(false)}>{t("完成")}</Btn></div>}>
+    <Dialog open={preferences} onClose={()=>setPreferences(false)} title={t("制作偏好")} description={t("默认由 AI 匹配。你指定的选项优先，生成后也可以修改。")} footer={<div className="studio-actions"><Btn onClick={()=>{setOptions({...defaultImportOptions,instruction:options.instruction,background_query:options.background_query,detect_singing:options.detect_singing});setSubtitle(null);setBrowser('')}}>{t("恢复自动")}</Btn><Btn variant="cta" onClick={()=>setPreferences(false)}>{t("完成")}</Btn></div>}>
       <ImportPreferences value={options} onChange={setOptions}/>
       <label className="studio-field">{t("已有字幕（选填）")}<input type="file" accept=".srt" aria-label={t("已有字幕")} onChange={e=>setSubtitle(e.target.files?.[0] || null)}/>{subtitle&&<small>{subtitle.name}<button className="studio-link" onClick={()=>setSubtitle(null)}>{t("移除")}</button></small>}</label>
       {source==='link'&&<details className="studio-details"><summary>{t("下载遇到登录限制时")}</summary><label className="studio-field">{t("使用浏览器登录状态")}<select value={browser} onChange={e=>setBrowser(e.target.value)}><option value="">{t("不使用")}</option>{['chrome','edge','safari','firefox'].map(b=><option key={b}>{b}</option>)}</select></label><p className="studio-muted">{t("仅在下载需要登录时选择，不会自动读取浏览器 Cookie。")}</p></details>}

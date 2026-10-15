@@ -126,6 +126,11 @@ def test_asr_prompt_is_bounded_and_manual_prompt_is_preserved(root):
     assert '小海诺' not in lib.asr_prompt('原提示')
 
 
+def test_optional_singing_preserves_legacy_import_shape():
+    assert 'detect_singing' not in ImportOptions().model_dump()
+    assert ImportOptions(detect_singing=True).model_dump()['detect_singing'] is True
+
+
 @pytest.mark.parametrize('value',[{'correct':'','variants':[]},{'correct':'心宜','variants':['宜']},{'correct':'心宜','variants':['心宜']}])
 def test_invalid_terms_rejected(value):
     with pytest.raises(ValidationError):lib.Term.model_validate(value)

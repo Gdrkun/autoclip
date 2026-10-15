@@ -302,6 +302,7 @@ class ImportOptions(BaseModel):
     duration: int | None = Field(default=None, ge=10, le=120)
     instruction: str = Field(default='', max_length=1000)
     background_query: str = Field(default='', max_length=200, exclude_if=lambda value: not value)
+    detect_singing: bool = Field(default=False, exclude_if=lambda value: not value)
     platforms: list[str] = Field(default_factory=lambda: ['douyin'], min_length=1, max_length=8)
     auto_start: bool = False
     portrait_style: Literal['auto', 'interview', 'podcast'] = 'auto'

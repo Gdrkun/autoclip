@@ -547,7 +547,9 @@ def _complete_thought_bounds(project_id, clips):
     except Exception:  # noqa: BLE001
         call = None
     with llm_usage.stage('boundaries'), llm_usage.timed('boundaries'):
-        return boundaries.refine_clips(rows, clips, call, boundaries.audio_silences(source(project_id)) if audio.has_audio(source(project_id)) else None)
+        from backend.services.singing_detection import preserve_song_bounds
+        refined = boundaries.refine_clips(rows, clips, call, boundaries.audio_silences(source(project_id)) if audio.has_audio(source(project_id)) else None)
+        return preserve_song_bounds(clips, refined)
 
 
 MAX_DRAFT_OVERLAP = 0.5  # share of the shorter clip two content drafts may have in common
@@ -1534,10 +1536,16 @@ def _inspect(project_id, options, url, browser):
         if options.background_query:
             store.change(project_id, lambda data: data['analysis'].update(message='正在查询角色背景'))
         background = prepare_project(project_id, options.background_query)
+        from backend.services.singing_detection import analyze as analyze_singing
+        if options.detect_singing:
+            store.change(project_id, lambda data: data['analysis'].update(message='正在检测歌声候选'))
+        singing = analyze_singing(project_id, source(project_id), options.detect_singing)
         with project_context(project_id):
             plan = recommend(source(project_id), options)
         if background is not None:
             plan['background_research'] = background.model_dump()
+        if singing is not None:
+            plan['singing_analysis'] = singing.model_dump()
         ensure_project_thumbnail(project_id)
         plan['id'] = uuid.uuid4().hex
         if options.auto_start:

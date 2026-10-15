@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { BackgroundResearchSummary } from './CharacterBackground'
 import SelectionFeedback from './SelectionFeedback'
+import { SingingSummary } from './SingingOptions'
 import { t } from '../../i18n'
 import { ReactNode, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -46,6 +47,7 @@ export default function StudioResults({ project, children, onCreateCollection, o
   const createLegacy = (clip: Clip) => act(clip.id, async()=>{const draft=await studioApi.create(project.id,[clip.id],clip.generated_title||clip.title||t("新成片"));navigate(`/project/${project.id}/studio/${draft.id}`)})
   return <div className="studio-results">
     <BackgroundResearchSummary report={workspace.plan?.background_research}/>
+    <SingingSummary report={workspace.plan?.singing_analysis}/>
     {managed && !automatic && <div className="studio-row"><span className="studio-muted">{sourceDuration!=null?`${t('原素材 {{duration}}', { duration: fmtDuration(sourceDuration) })} · `:''}{workspace.analysis?.status==='awaiting_confirmation'?t("新制作方案待确认，已有结果保留。"):t("制作结果与编辑")}</span><Btn size="sm" disabled={workspace.analysis?.status==='running'} onClick={()=>navigate(`/import/${project.id}`)}>{workspace.analysis?.status==='awaiting_confirmation'?t("继续确认方案"):t("调整制作方案")}</Btn></div>}
     {automatic && <>{workspace.generation?.skipped?.map(item=><p key={item.strategy_id} className="studio-output-hint">{t('未生成 {{platform}}：{{reason}}', { platform: platformLabel(item.strategy_id), reason: t(item.reason) })}</p>)}{addingPlatforms && <div className="studio-import-box"><PlatformPicker value={platforms} onChange={setPlatforms} disabled={!!busy}/><div className="studio-actions"><Btn size="sm" onClick={()=>setAddingPlatforms(false)}>{t('关闭')}</Btn><Btn variant="cta" size="sm" disabled={!platforms.length} loading={busy==='append-platforms'} onClick={appendPlatforms}>{t('生成追加版本')}</Btn></div></div>}</>}
     {!(workspace.analysis?.status==='awaiting_confirmation' && !workspace.drafts.length && !project.clips?.length && !project.collections?.length) && <Section title={t("剪辑与成片")} count={automatic ? (workspace.output_variants?.length || 0) : workspace.drafts.length+(project.clips?.length||0)+(project.collections?.length||0)} description={automatic ? generationDescription : visual?t("候选已整理为可编辑草稿；导出完成后，才能下载带包装的视频。"):t("切片与合集都在这里，可以直接下载，也可以另存为成片草稿。")} right={<div className="studio-actions">{automatic && <Btn size="sm" disabled={!!busy} onClick={()=>{setPlatforms([]);setAddingPlatforms(value=>!value)}}>{t('追加平台版本')}</Btn>}<Btn size="sm" onClick={()=>setHistory(true)}>{t("导出记录")}</Btn>{!managed&&<Btn size="sm" onClick={onCreateCollection}>{t("新建合集")}</Btn>}</div>}>

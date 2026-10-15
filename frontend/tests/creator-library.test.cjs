@@ -15,6 +15,11 @@ test('vocabulary confirmation preserves timing, speakers and simultaneous captio
  assert.equal(result.subtitles[0].text,'心宜');assert.equal(result.subtitles[1].text,'已手动修改')
  assert.equal(result.subtitles[0].start_ms,0);assert.equal(result.subtitles[0].speaker_id,'a');assert.equal(document.subtitles[0].text,'心仪')
 })
+test('singing controls never download on render and permit switching off when model is unavailable',()=>{
+ const Component=load('SingingOptions.tsx').default
+ const tree=nodes(Component({enabled:true,onChange(){},disabled:false}))
+ assert.equal(tree.find(item=>item.type==='input').props.disabled,false)
+})
 test('library entry is local and closed until explicitly opened',()=>{
  const Component=load('CreatorLibrary.tsx').default
  const tree=nodes(Component({query:'思诺snow'}))

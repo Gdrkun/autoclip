@@ -302,12 +302,20 @@ class SimplePipelineAdapter:
                 except CloudTranscriptionError as e:
                     raise cloud_transcription_failure(str(e)) from e
                 except SpeechRecognitionError as e:
-                    raise failure_from_speech_error(str(e)) from e
+                    from backend.services.singing_detection import selection_srt
+                    srt_path = selection_srt(None, metadata_dir)
+                    if not srt_path:
+                        raise failure_from_speech_error(str(e)) from e
+                if not (srt_path and srt_path.exists()):
+                    from backend.services.singing_detection import selection_srt
+                    srt_path = selection_srt(None, metadata_dir)
                 if not (srt_path and srt_path.exists()):
                     # 以前这里写一个空大纲然后一路「成功」到底，用户看到的是 Completed · 0 切片
                     raise missing_subtitle_failure()
                 logger.info(f"自动生成字幕成功: {srt_path}")
 
+            from backend.services.singing_detection import selection_srt
+            srt_path = selection_srt(srt_path, metadata_dir)
             # 快速出片：一次挑片（整段字幕一次给模型）；不可用时回退旧的四步
             checkpoint(self.project_id)
             titled_clips = self._find_clips_in_one_pass(srt_path, metadata_dir, **preference_kwargs) if clips_only else None

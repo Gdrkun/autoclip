@@ -334,8 +334,9 @@ def load_project(project_id):
 def project_context(project_id):
     token = _current.set(load_project(project_id))
     from backend.services.creator_library import project_context as library_context
+    from backend.services.singing_detection import project_context as singing_context
     try:
-        with library_context(project_id):
+        with library_context(project_id), singing_context(project_id):
             yield
     finally:
         _current.reset(token)

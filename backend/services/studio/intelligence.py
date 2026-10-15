@@ -300,7 +300,8 @@ def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
               '边界必须在原片范围内；每段不超过期望成片时长；确实没有任何可见看点时才返回空列表。')
     from backend.services.character_background import context_prompt
     from backend.services.creator_library import context_prompt as library_prompt
-    prompt += context_prompt() + library_prompt()
+    from backend.services.singing_detection import context_prompt as singing_prompt
+    prompt += context_prompt() + library_prompt() + singing_prompt()
     if instruction:
         prompt += '\n用户制作要求（仅在可见证据支持时遵循）：' + instruction
     if on_stage:
