@@ -14,6 +14,9 @@ class SpeakerCaptionLayout(BaseModel):
     font_scale: float = Field(default=1, ge=.5, le=2.5, allow_inf_nan=False)
     x: float = Field(default=.5, ge=.05, le=.95, allow_inf_nan=False)
     y: float = Field(default=.91, ge=.15, le=.95, allow_inf_nan=False)
+    outline_enabled: bool | None = Field(default=None, strict=True, exclude_if=lambda value: value is None)
+    outline_width: float | None = Field(default=None, ge=.5, le=8, allow_inf_nan=False, exclude_if=lambda value: value is None)
+    outline_color: str | None = Field(default=None, pattern=r'^#[0-9a-fA-F]{6}$', exclude_if=lambda value: value is None)
 
 
 class Speaker(BaseModel):

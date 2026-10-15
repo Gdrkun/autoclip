@@ -4,7 +4,7 @@ export type SubtitleStyle = 'clean' | 'bold' | 'box' | 'accent'
 export const subtitleStyles: { value: SubtitleStyle; label: string }[] = [{ value: 'clean', label: '简洁描边' }, { value: 'bold', label: '粗体大字' }, { value: 'box', label: '底色字幕条' }, { value: 'accent', label: '醒目黄字' }]
 export interface SubtitleCue { start: number; end: number; text: string }
 export interface SpeakerCue { id: string; start_ms: number; end_ms: number; text: string; speaker_id: string | null; layer: number; assignment_reason?: string }
-export interface SpeakerCaptionLayout { font_scale: number; x: number; y: number }
+export interface SpeakerCaptionLayout { font_scale: number; x: number; y: number; outline_enabled?: boolean; outline_width?: number; outline_color?: string }
 export interface SpeakerDocument { schema_version: 1; time_base: 'clip'; duration_ms: number; speakers: { speaker_id: string; display_name: string; color: string }[]; subtitles: SpeakerCue[]; turns: { start_ms: number; end_ms: number; speaker_id: string }[] }
 export interface FramingStatus { status: 'installed' | 'not_installed' | 'installing' | 'error'; progress: number; message: string; size_mb: number; cooldown_seconds?: number }
 export interface AutoFrameResult { window_fraction: number; scenes: { id: string; crop_x: number | null; crop_track: CropPoint[] | null; faces: number; samples: number; shots: number; fit_shots: number; switches: number }[] }

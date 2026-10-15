@@ -122,3 +122,17 @@
 @media (prefers-reduced-motion: reduce) {
   .speaker-panel *, .speaker-panel *::after { transition: none !important; }
 }
+
+.speaker-outline-controls { margin-top: 14px; padding: 14px 16px; border: 1px solid var(--ac-line); border-radius: 12px; }
+.speaker-outline-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.speaker-outline-hint { color: var(--ac-muted); font-size: 10px; line-height: 1.6; }
+.speaker-outline-options { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 24px; margin-top: 16px; }
+.speaker-outline-color { display: flex; align-items: center; gap: 9px; color: var(--ac-sub); font-size: 11px; }
+.speaker-outline-color > span:first-child { margin-right: auto; }
+.speaker-outline-hex { color: var(--ac-muted); font-family: var(--ac-font-mono); font-size: 10px; }
+.speaker-outline-color--disabled, .speaker-slider--disabled { opacity: .4; }
+.speaker-outline-color input:disabled, .speaker-slider input:disabled { cursor: default; }
+@container speaker-panel (max-width: 480px) {
+  .speaker-outline-options { grid-template-columns: 1fr; gap: 18px; }
+  .speaker-outline-hint { font-size: 10px; }
+}

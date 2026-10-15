@@ -66,6 +66,9 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   }
   const processing = busy || ['queued', 'running'].includes(job.status)
   const layoutValue = layout || { font_scale: 1, x: .5, y: .91 }
+  const outline = { enabled: layout?.outline_enabled !== false, width: layout?.outline_width ?? 2, color: layout?.outline_color || '#000000' }
+  const patchOutline = (update: Partial<SpeakerCaptionLayout>) => onLayout({ ...layoutValue,
+    outline_enabled: outline.enabled, outline_width: outline.width, outline_color: outline.color, ...update })
   const patch = (update: Partial<SpeakerDocument>) => { if (document) onChange({ ...document, ...update }) }
   return <details className="speaker-panel" open={!!document}>
     <summary className="speaker-panel-summary">
@@ -112,6 +115,13 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
             <label className="speaker-slider"><span>{t('字幕大小（%）')}<output>{Math.round(layoutValue.font_scale * 100)}%</output></span><input type="range" aria-label={t('字幕大小（%）')} min={50} max={250} step={5} value={Math.round(layoutValue.font_scale * 100)} onChange={e => onLayout({ ...layoutValue, font_scale: Number(e.target.value) / 100 })}/></label>
             <label className="speaker-slider"><span>{t('横向位置（%）')}<output>{Math.round(layoutValue.x * 100)}%</output></span><input type="range" aria-label={t('横向位置（%）')} min={5} max={95} step={1} value={Math.round(layoutValue.x * 100)} onChange={e => onLayout({ ...layoutValue, x: Number(e.target.value) / 100 })}/></label>
             <label className="speaker-slider"><span>{t('纵向位置（%）')}<output>{Math.round(layoutValue.y * 100)}%</output></span><input type="range" aria-label={t('纵向位置（%）')} min={15} max={95} step={1} value={Math.round(layoutValue.y * 100)} onChange={e => onLayout({ ...layoutValue, y: Number(e.target.value) / 100 })}/></label>
+          </div>
+          <div className="speaker-outline-controls">
+            <div className="speaker-outline-heading"><label className="speaker-color-switch"><input type="checkbox" aria-label={t('字幕描边')} checked={outline.enabled} onChange={event => patchOutline({ outline_enabled: event.target.checked })}/><span className="speaker-switch-track"/><span>{t('字幕描边')}</span></label><span className="speaker-outline-hint">{t('粗细随字号缩放，关闭后不显示描边。')}</span></div>
+            <div className="speaker-outline-options">
+              <label className={`speaker-outline-color${outline.enabled ? '' : ' speaker-outline-color--disabled'}`}><span>{t('描边颜色')}</span><span className="speaker-color-picker"><input type="color" aria-label={t('描边颜色')} disabled={!outline.enabled} value={outline.color} onChange={event => patchOutline({ outline_color: event.target.value })}/><span aria-hidden="true" style={{ background: outline.color }}/></span><span className="speaker-outline-hex" aria-hidden="true">{outline.color.toUpperCase()}</span></label>
+              <label className={`speaker-slider${outline.enabled ? '' : ' speaker-slider--disabled'}`}><span>{t('描边粗细（px）')}<output>{outline.width}px</output></span><input type="range" aria-label={t('描边粗细（px）')} min={.5} max={8} step={.5} disabled={!outline.enabled} value={outline.width} onChange={event => patchOutline({ outline_width: Number(event.target.value) })}/></label>
+            </div>
           </div>
         </section>
         <section className="speaker-section speaker-captions-section">

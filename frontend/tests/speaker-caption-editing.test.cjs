@@ -53,9 +53,37 @@ test('actual editor controls change layout and reorder or insert cues without re
   const named = label => tree.find(node => node.props?.['aria-label'] === label)
   named('字幕大小（%）').props.onChange({ target: { value: '150' } })
   assert.equal(layout.font_scale, 1.5)
+  named('字幕描边').props.onChange({ target: { checked: false } })
+  assert.equal(layout.outline_enabled, false)
+  named('描边粗细（px）').props.onChange({ target: { value: '3.5' } })
+  assert.equal(layout.outline_width, 3.5)
+  named('描边颜色').props.onChange({ target: { value: '#12ABEF' } })
+  assert.equal(layout.outline_color, '#12ABEF')
   named('上移 b').props.onClick()
   assert.deepEqual(ids(next.subtitles), ['b', 'a'])
   named('在此后补句 a').props.onClick()
   assert.deepEqual(ids(next.subtitles), ['a', 'new-cue', 'b'])
   assert.equal(named('上移 a').props.disabled, true)
+})
+
+
+test('outline defaults preserve legacy width and explicit widths follow the font scale', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(editing.speakerCaptionOutline())), { enabled: true, width: 2, color: '#000000' })
+  const layout = { font_scale: 1.5, x: .5, y: .91, outline_width: 3, outline_color: '#12ABEF' }
+  assert.equal(editing.speakerCaptionOutline(layout).width, 4.5)
+  assert.equal(editing.speakerCaptionOutline({...layout, outline_enabled:false}).width, 0)
+})
+
+test('actual caption preview uses colored text strokes and supports removing them', () => {
+  const jsx = (type, props) => ({ type, props })
+  const Preview = load('SpeakerCaptionPreview.tsx', { 'react/jsx-runtime': { jsx, jsxs: jsx }, './speakerSubtitleEditing': editing }).default
+  const props = { document: doc, colors: false, style: 'clean', width: 320, height: 180, time: .5, sceneStart: 0, sceneEnd: 7 }
+  const layout = { font_scale: 1.5, x: .5, y: .91, outline_width: 3, outline_color: '#12ABEF' }
+  const on = Preview({...props,layout}).props.children[0].props.style
+  assert.equal(on.WebkitTextStroke, '2.8125cqw #12ABEF')
+  assert.equal(on.paintOrder, 'stroke fill')
+  assert.equal(on.color, '#FFFFFF')
+  const off = Preview({...props,layout:{...layout,outline_enabled:false}}).props.children[0].props.style
+  assert.equal(off.WebkitTextStroke, '0 transparent')
+  assert.equal(off.textShadow, 'none')
 })

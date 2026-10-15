@@ -1706,5 +1706,9 @@
   "优先保留网络流行梗，保留理解梗所需的上下文。": "Prioriza referencias virales y conserva el contexto necesario para entenderlas.",
   "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Prioriza memes sin inventar su origen o significado.",
   "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "Ej.: canto, humor y memes sobre charla casual; conserva preparación y remates completos.",
-  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Se elige contenido real; pueden perderse cantos o bromas visuales ausentes de los subtítulos."
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Se elige contenido real; pueden perderse cantos o bromas visuales ausentes de los subtítulos.",
+  "字幕描边": "Contorno de subtítulos",
+  "描边颜色": "Color del contorno",
+  "描边粗细（px）": "Grosor del contorno (px)",
+  "粗细随字号缩放，关闭后不显示描边。": "El grosor se ajusta al tamaño del texto. Desactiva para quitar el contorno."
 }

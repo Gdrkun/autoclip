@@ -1706,5 +1706,9 @@
   "优先保留网络流行梗，保留理解梗所需的上下文。": "Privilégiez les références populaires en conservant le contexte nécessaire.",
   "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Privilégiez les mèmes sans inventer leur origine ou leur sens.",
   "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "Ex. : chant et humour plutôt que bavardage ; gardez la mise en place et les chutes.",
-  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Le chant ou les blagues visuelles absents des sous-titres peuvent être manqués ; seules les preuves fournies servent au choix."
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Le chant ou les blagues visuelles absents des sous-titres peuvent être manqués ; seules les preuves fournies servent au choix.",
+  "字幕描边": "Contour des sous-titres",
+  "描边颜色": "Couleur du contour",
+  "描边粗细（px）": "Épaisseur du contour (px)",
+  "粗细随字号缩放，关闭后不显示描边。": "L’épaisseur suit la taille du texte. Désactivez pour supprimer le contour."
 }

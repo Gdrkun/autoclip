@@ -39,6 +39,12 @@ export function speakerCaptionGeometry(width: number, height: number, style: str
     rowGap: roundPixel(fontSize * 1.6) }
 }
 
+export function speakerCaptionOutline(layout?: SpeakerCaptionLayout | null) {
+  const enabled = layout?.outline_enabled !== false
+  const width = layout?.outline_width == null ? 2 : layout.outline_width * (layout.font_scale ?? 1)
+  return { enabled, width: enabled ? width : 0, color: layout?.outline_color || '#000000' }
+}
+
 export function activeSpeakerRows(document: SpeakerDocument, seconds: number, sceneStart: number, sceneEnd: number) {
   let active: { end: number; slot: number }[] = []
   const rows: { cue: SpeakerCue; slot: number }[] = []

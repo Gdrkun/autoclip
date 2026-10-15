@@ -106,3 +106,13 @@
 - 本次变更：添加唱歌/搞笑/网络流行梗/迷因快捷项及可编辑要求框；保留原 instruction 字段，贯通 Studio 自动/确认制作、task、适配器、一次选片和回退的大纲/时间定位/LLM 评分。明确兴趣匹配与完整上下文，保留真实时间/ID/schema，尊重排除项且不编造梗；常规重试读取保存要求，显式空要求不会恢复旧偏好。偏好哈希区分时间线缓存，保留旧诊断，默认空偏好保留原行为；八语文案同步。
 - 影响范围：backend/services/studio/jobs.py、tasks/processing.py、simple_pipeline_adapter.py、pipeline/clip_finder/step1_outline/step2_timeline/step3_scoring/scoring_backend 及新 selection_preferences；frontend 的 CreativeImport、新 SelectionPreferences/selectionPreferencePresets/CSS、八语目录、前后端回归及使用说明。没有迁移数据库、修改用户配置/供应商或开启额外模型路线。
 - 验证方式：修复前两项偏好传递回归失败；修复后模型边界/缓存/旧失败路线等 145 passed、Studio 导入 74 passed，最后语义说明更新后偏好 14 项复验通过；全 backend 正确性 lint 通过。完整 frontend lint/types/300 tests/build 通过，新增表单断言再定向 5 passed。独立 Edge 四类组合+自由文本，并捕获真实生成按钮 multipart，要求完整到达 instruction 字段；所有写请求拦截，不下载素材或调用外部模型。初次检查暴露旧时间线构造默认缓存属性及 Windows 模块大小写相撞，修复后原失败组和构建通过，首次报告保留。未调用用户配置的真实模型评分、不作唱歌/梗命中准确率保证；全量 backend 既有失败/超时与桌面双平台验收未通过/未完成，.env 哈希未变。未提交或推送本次修改。
+
+
+## 2026-10-15 09:02
+
+- 类型：新增。
+- 涉及功能：说话人字幕描边开关、颜色、粗细与成片。
+- 原功能：ASS 固定 2px 黑色描边，没有可编辑参数；浏览器仅显示轻微阴影，无法按用户偏好预览描边。
+- 本次变更：布局增加可选描边 enabled/width/color，面板加入开关、颜色和 0.5–8px 粗细；显式粗细随字号缩放，同步浏览器文字描边、草稿、ASS 和原 MP4 导出。底色字幕条用独立背景与文字描边，宽描边保留背景留白。旧草稿维持固定黑色 2px，缺省字段不改变原 JSON 形状；恢复布局同时恢复描边默认；八语文案同步。
+- 影响范围：backend/services/speaker_subtitles.py、speaker_ass.py；frontend/features/studio 的 types、speakerSubtitleEditing、SpeakerCaptionPreview、SpeakerSubtitles、speaker-subtitles.css、八语目录，以及新 test_speaker_outline、原字幕编辑测试和开发说明。未修改用户项目、配置、供应商或视频，不做迁移与模型重分析。
+- 验证方式：后端 82 passed 无 skip，包含参数边界/旧序列化、HTTP 保存刷新、ASS/BGR/缩放、底色背景、实际 FFmpeg 像素粗细/开关/颜色与全文件解码；全 backend 正确性 lint 通过。完整 frontend lint/types/302 tests/build 通过，底色留白微调后相关 6 项与生产 build 再通过。Edge 隔离合成草稿实际开关/颜色/3px 设置、预览 CSS、保存刷新、下载 ASS（150% 字号输出 4.5px）、390px 无溢出及原导出流程验证；原始截图/视频仅私有保存。全量 backend 既有门禁失败/超时与桌面双平台验收未通过/未完成，不作发布声明。无外部/付费模型调用，未提交或推送本次修改。

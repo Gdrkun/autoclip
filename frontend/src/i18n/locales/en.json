@@ -1706,5 +1706,9 @@
   "优先保留网络流行梗，保留理解梗所需的上下文。": "Prioritize internet references, keeping the context needed to understand them.",
   "优先保留迷因和玩梗片段，不编造梗的出处或含义。": "Prioritize memes without inventing their origins or meanings.",
   "例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。": "For example: singing, humor and memes over small talk; keep setups and complete jokes.",
-  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Selection uses actual material; singing or visual jokes absent from captions may be missed."
+  "只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。": "Selection uses actual material; singing or visual jokes absent from captions may be missed.",
+  "字幕描边": "Caption outline",
+  "描边颜色": "Outline color",
+  "描边粗细（px）": "Outline width (px)",
+  "粗细随字号缩放，关闭后不显示描边。": "Width scales with the font size. Turn off to remove the outline."
 }
