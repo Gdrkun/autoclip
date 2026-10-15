@@ -14,6 +14,7 @@ directory, the same way the Whisper runtime is.
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import importlib.util
 import logging
 import os
@@ -515,7 +516,7 @@ def scan_speakers(video: Path, scenes) -> list[dict[str, Any]]:
     if not is_installed():
         raise RuntimeError("人物识别组件未安装")
     scans = []
-    with tempfile.TemporaryDirectory(prefix="ac-framing-") as temp:
+    with tempfile.TemporaryDirectory(prefix="ac-framing-", dir=get_temp_directory()) as temp:
         folder = Path(temp)
         for scene in scenes:
             length = scene.end - scene.start

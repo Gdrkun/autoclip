@@ -107,9 +107,8 @@ def get_uploads_directory() -> Path:
 
 def get_temp_directory() -> Path:
     """获取临时目录"""
-    temp_dir = get_data_directory() / "temp"
-    temp_dir.mkdir(parents=True, exist_ok=True)
-    return temp_dir
+    from backend.core.temp_storage import get_directory
+    return get_directory()
 
 def ensure_directory_exists(path: Path) -> Path:
     """确保目录存在"""

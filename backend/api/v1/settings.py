@@ -25,6 +25,24 @@ from backend.services import ai_model_settings as ai_models
 from backend.services import output_branding
 
 
+from backend.core import temp_storage
+
+
+@router.get('/temporary-storage')
+def get_temporary_storage():
+    return temp_storage.status()
+
+
+@router.put('/temporary-storage')
+def set_temporary_storage(body: temp_storage.TempStorageSettings):
+    try:
+        return temp_storage.save_settings(body)
+    except temp_storage.TempStorageError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail='storage_settings_save_failed') from exc
+
+
 @router.get('/output-branding')
 def get_output_branding():
     return output_branding.load_settings()
@@ -300,6 +318,8 @@ async def get_settings():
                 
                 # 验证并返回保存的设置
                 settings = DesktopSettings(**saved_settings)
+                if settings.paths is not None:
+                    settings.paths.temp_directory = str(temp_storage.effective_directory(temp_storage.load_settings()))
                 return settings
             except Exception as e:
                 # 如果读取失败，回退到默认配置
@@ -313,7 +333,7 @@ async def get_settings():
         paths = PathSettings(
             data_directory=str(config.paths.data_dir),
             cache_directory=str(config.paths.cache_dir),
-            temp_directory=str(config.paths.temp_dir)
+            temp_directory=str(temp_storage.effective_directory(temp_storage.load_settings()))
         )
         
         # 构建完整设置

@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { settingsApi } from '../services/api'
 import AIModelSettings from '../features/settings/AIModelSettings'
 import OutputBrandingSetting from '../features/settings/OutputBrandingSetting'
+import TempStorageSetting from '../features/settings/TempStorageSetting'
 import FeedbackDialog from '../components/FeedbackDialog'
 import PublishSettings from '../components/PublishSettings'
 import { isDesktopMode } from '../utils/desktopMode'
@@ -220,6 +221,7 @@ const AppSection: React.FC<{ analyticsOn: boolean; onAnalyticsChange: (on: boole
           <Switch checked={autostart} onChange={toggleAutostart} loading={busy} disabled={!desktop} />
         </Row>
         <OutputBrandingSetting />
+        <TempStorageSetting />
         {(desktop || appUpdate.preview) && (
           <Row label={t('版本')} hint={versionHint}>
             {appUpdate.phase === 'ready' || appUpdate.phase === 'restarting' ? (

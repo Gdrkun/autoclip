@@ -6,6 +6,7 @@
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import io
 import json
 import logging
@@ -399,7 +400,7 @@ def extract_frame_jpeg(video_path: Path, at_sec: float = 0.5, *, max_width: int 
     ffmpeg_bin = get_ffmpeg_path() or "ffmpeg"
     import tempfile
 
-    with tempfile.TemporaryDirectory(prefix="autoclip-cover-frame-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="autoclip-cover-frame-", dir=get_temp_directory()) as tmp:
         out = Path(tmp) / "frame.jpg"
         cmd = [
             ffmpeg_bin, "-y",

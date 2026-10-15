@@ -1,6 +1,7 @@
 """
 大模型客户端 - 兼容性包装器，使用新的LLM管理器
 """
+from backend.core.path_utils import get_temp_directory
 import json
 import logging
 import os
@@ -258,7 +259,7 @@ class LLMClient:
                         logger.error(f"最终尝试解析失败: {final_e}")
                         # 保存原始响应以便调试
                         import tempfile
-                        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8') as f:
+                        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, encoding='utf-8', dir=get_temp_directory()) as f:
                             f.write(response)
                             logger.error(f"原始响应已保存到 {f.name} 以便调试")
                         raise ValueError(f"无法从响应中解析出有效的JSON: {response[:200]}...") from final_e

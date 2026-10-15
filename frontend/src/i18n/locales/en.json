@@ -1793,5 +1793,18 @@
   "分段进度 {{done}} / {{total}}": "Chunk progress {{done}} / {{total}}",
   "识别已暂停，重试会复用已完成分段": "Recognition paused. Retry resumes completed chunks.",
   "暂停处理": "Pause processing",
-  "处理已暂停，重试会复用已完成的音轨分段": "Processing paused. Retry resumes completed audio chunks."
+  "处理已暂停，重试会复用已完成的音轨分段": "Processing paused. Retry resumes completed audio chunks.",
+  "临时工作目录": "Temporary working folder",
+  "上传暂存、音频处理和渲染中间文件使用此目录。在所选目录下创建 AutoClipTemp 文件夹。": "Used for upload staging, audio processing and render intermediates. An AutoClipTemp subfolder is created in your chosen folder.",
+  "请输入运行 AutoClip 的电脑上的绝对路径，留空使用默认目录": "Enter an absolute path on the computer running AutoClip, or leave blank to use the default folder.",
+  "当前目录：{{path}}": "Current folder: {{path}}",
+  "剩余空间：{{size}} GiB": "Free space: {{size}} GiB",
+  "目录暂不可用，请选择其他路径": "Folder unavailable. Choose another path.",
+  "修改仅影响新操作；已有临时文件、项目和成片不会移动或删除。": "Changes apply to new operations. Existing temporary files, projects and videos are kept in place.",
+  "临时目录已保存": "Temporary folder saved",
+  "请输入绝对路径": "Enter an absolute path",
+  "目录无法写入，请检查路径和权限": "Cannot write to this folder. Check the path and permissions.",
+  "读取临时目录失败": "Could not load temporary folder settings",
+  "保存临时目录失败": "Could not save temporary folder settings",
+  "恢复默认": "Restore default"
 }

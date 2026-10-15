@@ -1793,5 +1793,18 @@
   "分段进度 {{done}} / {{total}}": "Progresso {{done}} / {{total}}",
   "识别已暂停，重试会复用已完成分段": "Reconhecimento pausado. Tente novamente para reutilizar as partes concluídas.",
   "暂停处理": "Pausar processamento",
-  "处理已暂停，重试会复用已完成的音轨分段": "Processamento pausado. Tente novamente para reutilizar as partes de áudio concluídas."
+  "处理已暂停，重试会复用已完成的音轨分段": "Processamento pausado. Tente novamente para reutilizar as partes de áudio concluídas.",
+  "临时工作目录": "Pasta de trabalho temporária",
+  "上传暂存、音频处理和渲染中间文件使用此目录。在所选目录下创建 AutoClipTemp 文件夹。": "Usada para uploads, processamento de áudio e arquivos intermediários de renderização. Uma subpasta AutoClipTemp é criada na pasta escolhida.",
+  "请输入运行 AutoClip 的电脑上的绝对路径，留空使用默认目录": "Digite um caminho absoluto no computador que executa o AutoClip ou deixe em branco para usar a pasta padrão.",
+  "当前目录：{{path}}": "Pasta atual: {{path}}",
+  "剩余空间：{{size}} GiB": "Espaço livre: {{size}} GiB",
+  "目录暂不可用，请选择其他路径": "Pasta indisponível. Escolha outro caminho.",
+  "修改仅影响新操作；已有临时文件、项目和成片不会移动或删除。": "As alterações se aplicam a novas operações. Arquivos temporários, projetos e vídeos existentes permanecem no lugar.",
+  "临时目录已保存": "Pasta temporária salva",
+  "请输入绝对路径": "Digite um caminho absoluto",
+  "目录无法写入，请检查路径和权限": "Não é possível gravar na pasta. Confira o caminho e as permissões.",
+  "读取临时目录失败": "Não foi possível carregar as configurações da pasta temporária",
+  "保存临时目录失败": "Não foi possível salvar as configurações da pasta temporária",
+  "恢复默认": "Restaurar padrão"
 }

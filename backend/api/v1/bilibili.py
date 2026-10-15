@@ -281,8 +281,8 @@ async def process_download_task(task_id: str, request: BilibiliDownloadRequest, 
         
         # 下载视频
         data_dir = get_data_directory()
-        download_dir = data_dir / "temp"
-        download_dir.mkdir(exist_ok=True)
+        from backend.core.path_utils import get_temp_directory
+        download_dir = get_temp_directory()
         
         from ...utils.bilibili_downloader import download_bilibili_video
         download_result = await download_bilibili_video(

@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import json
 import logging
 import re
@@ -310,7 +311,7 @@ def export_clip(req: ExportRequest) -> Dict[str, Any]:
     font = resolve_cjk_font()
     if req.title_card and not studio and not font:
         warnings.append("没找到中文字体，已跳过标题卡")
-    tmpdir = Path(tempfile.mkdtemp(prefix="ac-export-"))
+    tmpdir = Path(tempfile.mkdtemp(prefix="ac-export-", dir=get_temp_directory()))
     srt_file = None
     title_file = None
     try:

@@ -6,6 +6,7 @@ precedence wherever a cover is used — publishing reads the same files.
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import io
 import json
 import logging
@@ -272,7 +273,7 @@ def _write_kit(target, video: Path, cover: Path | None, post: dict[str, Any], pl
 
 def kit_file(video: Path, cover: Path | None, post: dict[str, Any], platform_label: str, *, english: bool = False) -> tuple[Path, str]:
     """Build on disk: a long video must not be duplicated into server memory for its download."""
-    with tempfile.NamedTemporaryFile(prefix='autoclip-kit-', suffix='.zip', delete=False) as temporary:
+    with tempfile.NamedTemporaryFile(prefix='autoclip-kit-', suffix='.zip', delete=False, dir=get_temp_directory()) as temporary:
         path = Path(temporary.name)
     try:
         return path, _write_kit(path, video, cover, post, platform_label, english=english)

@@ -1,6 +1,7 @@
 """Cloud ASR with real timestamps, bounded uploads, and no provider fallback."""
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import base64
 import json
 import math
@@ -127,7 +128,7 @@ def transcribe(video: Path, output: Path | None, settings, language='auto', time
         return output
     # Each upload is <= 180 seconds / 5.76 MB PCM, including base64 < 10 MB.
     # Exact sample offsets avoid encoder delay/drift when merging long recordings.
-    with tempfile.TemporaryDirectory(prefix='autoclip-asr-') as temp:
+    with tempfile.TemporaryDirectory(prefix='autoclip-asr-', dir=get_temp_directory()) as temp:
         audio = Path(temp) / 'source.wav'
         completed = subprocess.run([get_ffmpeg_path(), '-nostdin', '-y', '-i', str(video), '-vn',
                                     '-ac', '1', '-ar', '16000', '-c:a', 'pcm_s16le', str(audio)],

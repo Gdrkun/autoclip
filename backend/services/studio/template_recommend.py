@@ -6,6 +6,7 @@ body is enums only: no titles, names, paths, or durations.
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import json
 import subprocess
 import tempfile
@@ -91,7 +92,7 @@ def probe_header(header: bytes, budget: float) -> dict:
     if not header:
         return signals_from_media(None, None, None)
     from backend.utils.ffmpeg_utils import get_ffprobe_path
-    with tempfile.NamedTemporaryFile(suffix='.mp4') as tmp:
+    with tempfile.NamedTemporaryFile(suffix='.mp4', dir=get_temp_directory()) as tmp:
         tmp.write(header[: 1024 * 1024])
         tmp.flush()
         try:

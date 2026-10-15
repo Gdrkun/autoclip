@@ -83,7 +83,7 @@ class UnifiedPathManager:
     @property
     def temp_directory(self) -> Path:
         """临时目录"""
-        return self._data_dir / "temp"
+        return path_utils.get_temp_directory()
     
     @property
     def backups_directory(self) -> Path:

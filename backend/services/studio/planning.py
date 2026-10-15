@@ -1,4 +1,5 @@
 """Recommend a workflow from bounded visual evidence; explicit preferences always win."""
+from backend.core.path_utils import get_temp_directory
 from pathlib import Path
 import subprocess
 import tempfile
@@ -121,7 +122,7 @@ def recommend(video: Path, options: ImportOptions):
             config = effective()
             config['timeout'] = min(config.get('timeout', 180), 30)
             config['quick_screening'] = True
-            with tempfile.TemporaryDirectory(prefix='ac-plan-') as tmp:
+            with tempfile.TemporaryDirectory(prefix='ac-plan-', dir=get_temp_directory()) as tmp:
                 response = intelligence.vision_call([{'type':'text', 'text':prompt}] + intelligence.sample(video, times, Path(tmp), width=384), config=config)
             result = Recommendation.model_validate(response)
         except (RuntimeError, ValueError, KeyError, TypeError, OSError, subprocess.SubprocessError) as error:

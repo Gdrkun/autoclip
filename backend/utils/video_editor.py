@@ -1,3 +1,4 @@
+from backend.core.path_utils import get_temp_directory
 import logging
 import subprocess
 import tempfile
@@ -211,7 +212,7 @@ class VideoEditor:
         """
         try:
             # 创建临时目录
-            with tempfile.TemporaryDirectory() as temp_dir:
+            with tempfile.TemporaryDirectory(dir=get_temp_directory()) as temp_dir:
                 temp_path = Path(temp_dir)
                 
                 # 提取所有片段

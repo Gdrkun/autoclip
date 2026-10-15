@@ -1,3 +1,4 @@
+from backend.core.path_utils import get_temp_directory
 import json
 import logging
 import shutil
@@ -733,7 +734,7 @@ def _burned_caption_language(video, found, title=''):
     try:
         from backend.services.publish_export import _probe
         duration = float(_probe(video).get('duration') or 0)
-        with tempfile.TemporaryDirectory(prefix='ac-captions-') as folder:
+        with tempfile.TemporaryDirectory(prefix='ac-captions-', dir=get_temp_directory()) as folder:
             frames = []
             for index, at in enumerate((duration * 0.3, duration * 0.5, duration * 0.7)):
                 path = Path(folder) / f'{index}.jpg'

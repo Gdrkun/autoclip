@@ -242,7 +242,17 @@ export interface BilibiliDownloadTask {
 }
 
 // 设置相关API
+export interface TempStorageStatus {
+  directory: string
+  effective_directory: string
+  default_directory: string
+  available: boolean
+  free_bytes: number | null
+}
+
 export const settingsApi = {
+  getTempStorage: (): Promise<TempStorageStatus> => api.get('/settings/temporary-storage'),
+  setTempStorage: (directory: string): Promise<TempStorageStatus> => api.put('/settings/temporary-storage', { directory }),
   getOutputBranding: (): Promise<{ enabled: boolean }> => api.get('/settings/output-branding'),
   setOutputBranding: (enabled: boolean): Promise<{ enabled: boolean }> => api.put('/settings/output-branding', { enabled }),
   // 获取系统配置

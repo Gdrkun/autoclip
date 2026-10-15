@@ -5,6 +5,7 @@ import json
 import math
 from pathlib import Path
 import subprocess
+from backend.core.path_utils import get_temp_directory
 import tempfile
 import time
 import uuid
@@ -164,7 +165,7 @@ def process_chunks(video, media, folder, key, infer, validate, on_progress=None,
             if value is None:
                 if on_progress:
                     on_progress(part['index'], len(parts), reused)
-                with tempfile.TemporaryDirectory(prefix='work-', dir=folder) as temp:
+                with tempfile.TemporaryDirectory(prefix='work-', dir=get_temp_directory()) as temp:
                     audio = Path(temp) / 'audio.wav'
                     extract(video, audio, part, media)
                     value = validate(infer(audio, Path(temp), part), part)

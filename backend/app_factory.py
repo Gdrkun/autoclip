@@ -59,6 +59,9 @@ def create_app(mode: str = "web") -> FastAPI:
         redoc_url="/redoc"
     )
     
+    from backend.core.temp_storage import configure_upload_spooling
+    configure_upload_spooling()
+
     # 设置应用状态
     app.state.mode = mode
     

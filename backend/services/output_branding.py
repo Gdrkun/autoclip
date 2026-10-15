@@ -6,6 +6,9 @@ frame rate, time base, audio layout) and cached, then joined to the content by s
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
+import errno
+import shutil
 import hashlib
 import json
 import logging
@@ -113,13 +116,30 @@ def _designed_outro(width: int, height: int, params: dict) -> Path | None:
         return target
 
 
+def _deliver_content(source: Path, destination: Path) -> None:
+    """Keep atomic delivery when scratch and project folders are on different disks."""
+    try:
+        os.replace(source, destination)
+        return
+    except OSError as error:
+        if error.errno != errno.EXDEV and getattr(error, 'winerror', None) != 17:
+            raise
+    partial = destination.with_name(f'.{destination.name}.{uuid.uuid4().hex}.part')
+    try:
+        shutil.copy2(source, partial)
+        os.replace(partial, destination)
+    finally:
+        partial.unlink(missing_ok=True)
+    source.unlink()
+
+
 def append_outro(source: Path, destination: Path, *, width: int, height: int, enabled: bool = True) -> bool:
     """Append the branded outro atomically. If branding fails, the video is delivered without it:
     a finished render must never be lost to the end card."""
     partial = destination.with_name(f'{destination.stem}.branding.part.mp4')
     partial.unlink(missing_ok=True)
     if not enabled:
-        os.replace(source, destination)
+        _deliver_content(source, destination)
         return False
     try:
         _append(source, partial, width, height)
@@ -128,7 +148,7 @@ def append_outro(source: Path, destination: Path, *, width: int, height: int, en
     except (OSError, subprocess.SubprocessError, ValueError, KeyError) as error:
         logging.getLogger(__name__).warning('Outro skipped: %s', type(error).__name__)
         partial.unlink(missing_ok=True)
-        os.replace(source, destination)
+        _deliver_content(source, destination)
         return False
 
 
@@ -141,7 +161,7 @@ def _ffmpeg(cmd: list[str], timeout: float) -> subprocess.CompletedProcess:
 
 
 def _append(source: Path, partial: Path, width: int, height: int) -> None:
-    with tempfile.TemporaryDirectory(prefix='ac-outro-') as tmp:
+    with tempfile.TemporaryDirectory(prefix='ac-outro-', dir=get_temp_directory()) as tmp:
         concat = Path(tmp) / 'concat.txt'
         ffmpeg = get_ffmpeg_path()
         params = _stream_params(source)

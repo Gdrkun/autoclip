@@ -448,8 +448,8 @@ async def process_youtube_download_task(task_id: str, request: YouTubeDownloadRe
         # Each attempt owns its files, including retries of the same task.
         # Never discover media in a directory shared with another download.
         import tempfile
-        temp_root = data_dir / "temp"
-        temp_root.mkdir(parents=True, exist_ok=True)
+        from backend.core.path_utils import get_temp_directory
+        temp_root = get_temp_directory()
         download_dir = Path(tempfile.mkdtemp(prefix="youtube-", dir=temp_root))
         
         # 更新项目进度

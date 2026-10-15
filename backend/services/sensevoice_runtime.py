@@ -1,4 +1,5 @@
 """Optional, isolated CPU SenseVoice runtime. No FunASR imports in this process."""
+from backend.core.path_utils import get_temp_directory
 from contextlib import contextmanager
 import json
 import logging
@@ -144,7 +145,7 @@ def worker(action, result, audio=None, language='auto', timeout=None, deny_netwo
     if deny_network:
         command += ['--deny-network']
     # Logs can contain private text. Keep them in the local diagnostic log only.
-    with tempfile.TemporaryFile() as log:
+    with tempfile.TemporaryFile(dir=get_temp_directory()) as log:
         try:
             completed = subprocess.run(command, stdout=log, stderr=log, timeout=timeout,
                                        env={**os.environ, 'PYTHONUTF8': '1', 'PYTHONIOENCODING': 'utf-8',
@@ -190,7 +191,7 @@ def _prepare():
         with _status_lock:
             (root() / 'ready.json').unlink(missing_ok=True)
         shutil.rmtree(runtime, ignore_errors=True)
-        with tempfile.TemporaryFile() as log:
+        with tempfile.TemporaryFile(dir=get_temp_directory()) as log:
             try:
                 completed = subprocess.run(command, stdout=log, stderr=log, timeout=1800,
                                            env={**os.environ, 'PIP_PROGRESS_BAR': 'off', 'PYTHONIOENCODING': 'utf-8'})
@@ -252,7 +253,7 @@ def transcribe(video, output=None, language='auto', timeout=0, *, deny_network=F
         raise SpeechRecognitionError('SenseVoiceSmall 支持中文、粤语、英语、日语和韩语，请选择支持的语言或自动检测')
     output = Path(output) if output else Path(video).with_suffix('.srt')
     try:
-        with operation(), tempfile.TemporaryDirectory(prefix='autoclip-sensevoice-') as temporary:
+        with operation(), tempfile.TemporaryDirectory(prefix='autoclip-sensevoice-', dir=get_temp_directory()) as temporary:
             if status()['status'] != 'ready':
                 raise RuntimeError('SenseVoice 尚未就绪，请到「设置 → 转写」准备 SenseVoiceSmall 模型')
             audio, result = Path(temporary) / 'audio.wav', Path(temporary) / 'result.json'

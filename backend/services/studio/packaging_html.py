@@ -11,6 +11,7 @@ A failed encode deletes its partial file. The caller downgrades to classic.
 """
 from __future__ import annotations
 
+from backend.core.path_utils import get_temp_directory
 import asyncio
 import hashlib
 import json
@@ -310,7 +311,7 @@ def encode_ffv1(holds: list[tuple[Path, int]], dest: Path, fps: int = 30, *, tim
     dest.parent.mkdir(parents=True, exist_ok=True)
     replaced = False
     try:
-        with tempfile.TemporaryDirectory(prefix='ac-ffconcat-') as temp:
+        with tempfile.TemporaryDirectory(prefix='ac-ffconcat-', dir=get_temp_directory()) as temp:
             listing = Path(temp) / 'list.ffconcat'
             _concat_listing(holds, fps, listing)
             from backend.utils.ffmpeg_utils import get_ffmpeg_path
@@ -440,7 +441,7 @@ def prepare_overlay(project_id: str, template: str, packaging, duration: float, 
         left = remaining()
         if left <= 0:
             return finish(_downgrade('over_budget', requested=template))
-        with tempfile.TemporaryDirectory(prefix='ac-overlay-') as temp:
+        with tempfile.TemporaryDirectory(prefix='ac-overlay-', dir=get_temp_directory()) as temp:
             holds = _write_holds(produced, Path(temp))
             encode_ffv1(holds, dest, fps=fps, timeout=left)
     except ProjectDeleted:

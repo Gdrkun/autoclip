@@ -1,4 +1,5 @@
 """Render immutable draft snapshots using the existing ffmpeg layout/subtitle code."""
+from backend.core.path_utils import get_temp_directory
 import os
 import subprocess
 import tempfile
@@ -170,7 +171,7 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
     output = out_dir / f'{job_id}.mp4'
     partial = out_dir / f'{job_id}.part.mp4'
     try:
-        with tempfile.TemporaryDirectory(prefix='ac-studio-render-') as temp:
+        with tempfile.TemporaryDirectory(prefix='ac-studio-render-', dir=get_temp_directory()) as temp:
             folder = Path(temp)
             offsets = _output_offsets(draft)
             overlay_retried = False
