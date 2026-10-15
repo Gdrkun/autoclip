@@ -46,6 +46,28 @@ def _needs_translation(language, hook, entries):
     return False
 
 
+def _speaker_language_matches(draft: Draft) -> bool:
+    """An explicit platform language may already be the original caption language."""
+    if draft.language == 'source':
+        return True
+    if draft.language not in ('zh', 'en'):
+        return False
+    from backend.services.studio.packaging import CJK, KANA, LATIN, source_language
+    texts = [cue.text for cue in draft.speaker_subtitles.subtitles
+             if any(cue.start_ms < scene.end * 1000 and cue.end_ms > scene.start * 1000 for scene in draft.scenes)]
+    detected = source_language(texts)
+    if detected == 'other':
+        # Short utterances such as a name do not reach the packaging detector's minimum length.
+        sample = ''.join(texts)
+        if CJK.search(sample) and not KANA.search(sample) and not LATIN.search(sample):
+            detected = 'zh'
+        elif LATIN.search(sample) and not CJK.search(sample) and not KANA.search(sample):
+            detected = 'en'
+    captions_match = not texts or detected == draft.language
+    title_matches = not draft.hook or not _needs_translation(draft.language, draft.hook, [])
+    return captions_match and title_matches
+
+
 def recover_empty_packaging(project_id, draft: Draft, warnings: list[str]) -> Draft:
     pack = draft.packaging
     if not (draft.subtitles and pack and pack.fallback and not pack.cues and not pack.burned_captions):
@@ -89,7 +111,7 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
     w, h = int(w) // 2 * 2, int(h) // 2 * 2
     warnings = []
     speaker_mode = bool(draft.subtitles and draft.speaker_subtitles)
-    if speaker_mode and draft.language != 'source':
+    if speaker_mode and not _speaker_language_matches(draft):
         raise ValueError('说话人字幕暂时只支持原语言')
     draft = recover_empty_packaging(project_id, draft, warnings)
     keep_audio = draft.original_audio and audio.has_audio(video)
@@ -189,9 +211,13 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
                             if not draft.speaker_colors:
                                 speaker_document = speaker_document.model_copy(update={'speakers': [s.model_copy(update={'color': '#FFFFFF'}) for s in speaker_document.speakers]})
                             speaker_path.write_text(scene_ass(speaker_document, scene, w, h, draft.subtitle_style, layout=draft.speaker_subtitle_layout), encoding='utf-8')
-                            graph, label = built
-                            source_label = label.strip('[]') if label else '0:v'
-                            built = ((graph + ';' if graph else '') + f"[{source_label}]ass=filename='{_escape_filter_path(speaker_path)}'[speakersub]", 'speakersub')
+                            if draft.layout == 'window':
+                                from backend.services.studio.packaging_render import scene_video_graph
+                                built = scene_video_graph(draft, scene, i, speaker_path, w, h)
+                            else:
+                                graph, label = built or ('', None)
+                                source_label = label.strip('[]') if label else '0:v'
+                                built = ((graph + ';' if graph else '') + f"[{source_label}]ass=filename='{_escape_filter_path(speaker_path)}'[speakersub]", 'speakersub')
                         clip_path = folder / f'{i}.mkv'
                         artwork = None
                         backdrop = None
