@@ -23,6 +23,7 @@ function render(automatic, phase, status = 'running', buttons = [], calls = []) 
       Dialog: empty, fmtDuration: String }
     if (name === './useWorkspace') return { useWorkspace: () => ({ workspace, loaded: true, loading: false, refresh() {} }) }
     if (name === './api') return { studioApi: { source: () => '/test.mp4', analyze: async (...args) => calls.push(args) }, errorText: String }
+    if (name === './CharacterBackground') return { BackgroundResearchSummary: empty }
     if (name === './platformLabel') return { platformLabel: String }
     return { default: empty }
   }

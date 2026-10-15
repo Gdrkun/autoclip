@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from backend.core import llm_usage
 from backend.services.studio import audio, intelligence, store
+from backend.services.character_background import with_project_context
 from backend.services.studio.features import resolve_features
 from backend.services.studio.models import Draft, Preferences, Scene
 from backend.services.studio.project_completion import sync_project_completion
@@ -578,6 +579,7 @@ def _distinct_ranges(picked, bounds):
     return [(picked[i][0], *kept[i]) for i in sorted(kept)]
 
 
+@with_project_context
 def _content_drafts(project_id, plan, video):
     """Create drafts once from the selected content route, before platform derivation."""
     route = plan.get('recommended_analysis', 'subtitle')
@@ -1528,7 +1530,14 @@ def _inspect(project_id, options, url, browser):
             with llm_usage.timed('download'):
                 download(project_id, url, browser)
         store.change(project_id, lambda data:(data['analysis'].pop('percent', None), data['analysis'].update(message='快速判断适合的制作类型')))
-        plan = recommend(source(project_id), options)
+        from backend.services.character_background import prepare_project, project_context
+        if options.background_query:
+            store.change(project_id, lambda data: data['analysis'].update(message='正在查询角色背景'))
+        background = prepare_project(project_id, options.background_query)
+        with project_context(project_id):
+            plan = recommend(source(project_id), options)
+        if background is not None:
+            plan['background_research'] = background.model_dump()
         ensure_project_thumbnail(project_id)
         plan['id'] = uuid.uuid4().hex
         if options.auto_start:
@@ -1631,6 +1640,7 @@ def confirm_project(project_id, body):
 
 
 @_tracked('production')
+@with_project_context
 def _produce_selected(project_id, plan):
     from backend.services.studio import intelligence
     started = monotonic()

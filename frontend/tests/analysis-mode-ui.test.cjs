@@ -13,6 +13,7 @@ function view(mode,goals,available=true){
  '../../ui':{Btn:'button',Dialog:'dialog',Row:'row',Segmented:'segmented',fmtDuration:String},
  './types':{defaultImportOptions:{},goalLabels:{content:'content',highlight:'highlight',promo:'promo'},languages:[]},
  './ImportPreferences':{default:'preferences'},
+ './CharacterBackground':{BackgroundResearchSummary:'background-summary'},
  './api':{studioApi:{confirmPlan:async(...args)=>calls.push(args)},errorText:String}
  }).default
  const render=()=>{index=0;return component({projectId:'p',plan:{id:'plan',suggested_goals:goals,preferences:{goal:'content',aspect:'original',language:'source'},overrides:{}},status:'awaiting_confirmation',onChanged:()=>{}})}

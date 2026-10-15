@@ -138,7 +138,8 @@ def process_video_pipeline(
         # 执行Pipeline处理 - 使用异步包装器
         import asyncio
         from backend.core.project_cancellation import bind, checkpoint
-        with bind(project_id):
+        from backend.services.character_background import project_context
+        with bind(project_id), project_context(project_id):
             preference_kwargs = {'selection_instruction': selection_instruction} if selection_instruction else {}
             result = asyncio.run(pipeline_adapter.process_project_sync(
                 input_video_path, input_srt_path, clips_only=clips_only, **preference_kwargs))

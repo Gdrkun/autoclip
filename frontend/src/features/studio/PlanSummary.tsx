@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Btn, Dialog, Row, Segmented, fmtDuration } from '../../ui'
 import { AnalysisMode, Goal, ImportOptions, ImportPlan, defaultImportOptions, goalLabels, languages } from './types'
 import ImportPreferences from './ImportPreferences'
+import { BackgroundResearchSummary } from './CharacterBackground'
 import { studioApi, errorText } from './api'
 
 const contentLabels: Record<string,string> = {gameplay:'游戏录屏',talk:'讲解 / 访谈',sport:'运动内容',vlog:'生活记录',mixed:'混合内容',other:'视频内容'}
@@ -34,6 +35,7 @@ export default function PlanSummary({projectId, plan, status, onChanged, onStart
   const aspectLabel=(aspect:string)=>t(aspect==='portrait'?'9:16 竖屏':aspect==='landscape'?'16:9 横屏':'保留原画幅')
   const aspectSummary=awaiting&&selected.length?selected.map(goal=>`${t(goalLabels[goal])} · ${aspectLabel(value.aspect || (goal==='promo'?'portrait':plan?.aspect || 'original'))}`).join(' / '):aspectLabel(prefs?.aspect || 'original')
   return <>
+    <BackgroundResearchSummary report={plan?.background_research}/>
     <div className={`studio-plan-summary ${awaiting?'studio-plan-confirm':''}`}>
       <div>{prefs?<><b>{awaiting?t("这段素材，可以这样做"):plan?.mode==='ai'?t("AI 建议"):plan?.mode==='manual'?t("你的方案"):t("当前方案")}</b><span className="studio-muted">{t(contentLabels[plan?.content_type || 'other'] ?? contentLabels.other)}{plan?.source_duration!=null?` · ${t('原素材 {{duration}}', { duration: fmtDuration(plan.source_duration) })}`:''} · {prefs.goal==='content'?t("按完整语义选段"):t('每条参考 {{seconds}} 秒', { seconds: prefs.duration })} · {aspectSummary} · {prefs.language==='source' ? t('原语言') : languages.find(l=>l.value===prefs.language)?.label}</span><details><summary>{t("查看判断依据")}{plan?.mode==='ai' && plan.confidence<.6?t("· 识别把握较低"):''}</summary><p className="studio-muted">{t(plan?.reason || '')}</p></details></>:<span className="studio-muted">{running?t("快速判断素材适合的制作类型"):t("可调整制作方案后重新识别")}</span>}</div>
       {awaiting && plan ? <>

@@ -116,3 +116,13 @@
 - 本次变更：布局增加可选描边 enabled/width/color，面板加入开关、颜色和 0.5–8px 粗细；显式粗细随字号缩放，同步浏览器文字描边、草稿、ASS 和原 MP4 导出。底色字幕条用独立背景与文字描边，宽描边保留背景留白。旧草稿维持固定黑色 2px，缺省字段不改变原 JSON 形状；恢复布局同时恢复描边默认；八语文案同步。
 - 影响范围：backend/services/speaker_subtitles.py、speaker_ass.py；frontend/features/studio 的 types、speakerSubtitleEditing、SpeakerCaptionPreview、SpeakerSubtitles、speaker-subtitles.css、八语目录，以及新 test_speaker_outline、原字幕编辑测试和开发说明。未修改用户项目、配置、供应商或视频，不做迁移与模型重分析。
 - 验证方式：后端 82 passed 无 skip，包含参数边界/旧序列化、HTTP 保存刷新、ASS/BGR/缩放、底色背景、实际 FFmpeg 像素粗细/开关/颜色与全文件解码；全 backend 正确性 lint 通过。完整 frontend lint/types/302 tests/build 通过，底色留白微调后相关 6 项与生产 build 再通过。Edge 隔离合成草稿实际开关/颜色/3px 设置、预览 CSS、保存刷新、下载 ASS（150% 字号输出 4.5px）、390px 无溢出及原导出流程验证；原始截图/视频仅私有保存。全量 backend 既有门禁失败/超时与桌面双平台验收未通过/未完成，不作发布声明。无外部/付费模型调用，未提交或推送本次修改。
+
+
+## 2026-10-15 10:30
+
+- 类型：新增。
+- 涉及功能：AI 选片前的角色背景自动查询、来源预览与项目上下文。
+- 原功能：制作要求可表达选片偏好，但程序没有主动检索人物资料，模型无法可靠理解陌生角色的人设和梗。
+- 本次变更：导入表单添加可选角色/组合名和免费公开查询；使用 B站精确账号、链接身份的萌娘百科正文及过滤后的搜索摘要，保留来源、7 天缓存与刷新入口。导入后先查背景再规划；背景绑定项目，进入字幕一次选片、回退大纲/时间/评分及画面选片的真实模型提示，缓存按背景内容区分。找不到、部分资料、断网、旧缓存与修改名称均有明确行为；网页数据按参考资料处理，不把人设当作视频事实。八语文案和使用说明同步。
+- 影响范围：新 character_background 服务、Studio API/models/jobs/intelligence、Celery task、selection_preferences；前端 CreativeImport、SelectionPreferences、新 CharacterBackground/CSS、结果与方案来源面板、类型及八语目录和回归。无数据库迁移，不修改供应商、密钥、素材或旧项目数据。
+- 验证方式：旧接口丢失背景字段的修复前回归失败；相关后端 138 passed、Studio 导入 74 passed，完整前端 lint/types/305 tests/build passed。免费实测思诺snow、心宜不是心仪（B站/枝江娱乐），隔离检索取得 3 条、真实网页取得 4 条来源，缓存复用正常；Edge 验证来源、390px 无溢出、名称变更清旧结果、断网及清空恢复，真实 multipart 同时携带背景与制作要求，生成请求本地拦截。初始测试素材过短及两个构建并发造成的 EBUSY 已修复/串行复验，保留失败报告。未调用付费模型或验证真实模型选片质量；全量后端既有失败/超时与安装包双平台验收缺口不改写为通过。未提交或推送本次修改，.env 哈希保持原值。

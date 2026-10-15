@@ -143,7 +143,7 @@ export function portraitDesign(draft: Draft): Draft {
 
 export interface ImportOptions {
   goal: 'auto' | Goal; language: Language; aspect: Draft['aspect'] | null
-  duration: number | null; instruction: string
+  duration: number | null; instruction: string; background_query?: string
   portrait_style?: 'auto' | 'interview' | 'podcast'
   html_template?: 'editorial' | 'street' | 'classic'
 }
@@ -156,6 +156,7 @@ export interface ImportPlan {
   id: string; source_duration?:number; suggested_goals: Goal[]; selected_goals?: Goal[]
   mode: 'ai' | 'manual' | 'fallback' | 'local'; content_type: string; reason: string; confidence: number
   preferences: {goal: Goal; language: Language; aspect: Draft['aspect']; duration: number}
+  background_research?: import('./CharacterBackground').BackgroundReport
   overrides: ImportOptions
 }
 export const defaultImportOptions: ImportOptions = {goal:'auto', language:'source', aspect:null, duration:null, instruction:'', portrait_style:'auto'}

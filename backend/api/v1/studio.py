@@ -22,6 +22,17 @@ from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, E
 router = APIRouter()
 
 
+class BackgroundRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=200)
+    force_refresh: bool = False
+
+
+@router.post('/background-research')
+def research_character_background(body: BackgroundRequest):
+    from backend.services.character_background import research
+    return call(research, body.query, body.force_refresh).model_dump()
+
+
 class SpeakerRequest(BaseModel):
     backend: Literal['whisper', 'sensevoice'] = 'whisper'
     prompt: str = Field(default='', max_length=500)
@@ -150,6 +161,7 @@ async def import_visual(
     aspect: Optional[Literal['original', 'portrait', 'landscape']] = Form(None),
     duration: Optional[int] = Form(None, ge=10, le=120),
     instruction: str = Form('', max_length=1000),
+    background_query: str = Form('', max_length=200),
     platforms: list[str] = Form(['douyin']),
     auto_start: bool = Form(False),
     portrait_style: Literal['auto', 'interview', 'podcast'] = Form('auto'),
@@ -189,7 +201,7 @@ async def import_visual(
         finally:
             await subtitle.close()
     prefs = ImportOptions(
-        goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction,
+        goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction, background_query=background_query,
         platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
         recommended_template=recommended_template,
         branding={'outro_enabled': brand_outro_enabled},

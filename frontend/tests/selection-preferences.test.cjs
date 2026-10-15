@@ -20,7 +20,7 @@ test('four presets append to free text and toggle independently without losing t
 })
 test('visible preference controls emit the complete editable request', () => {
   const jsx=(type,props)=>({type,props}), changes=[]
-  const Component=load('SelectionPreferences.tsx',{'../../i18n':{t:x=>x},'./selectionPreferencePresets':logic,'./selection-preferences.css':{},'react/jsx-runtime':{jsx,jsxs:jsx}}).default
+  const Component=load('SelectionPreferences.tsx',{'../../i18n':{t:x=>x},'./selectionPreferencePresets':logic,'./selection-preferences.css':{},'./CharacterBackground':{default:'character-background'},'react/jsx-runtime':{jsx,jsxs:jsx}}).default
   const nodes=value=>!value||typeof value!=='object'?[]:Array.isArray(value)?value.flatMap(nodes):[value,...nodes(value.props?.children)]
   const tree=nodes(Component({value:'少选闲聊',disabled:false,onChange:value=>changes.push(value)}))
   tree.find(node=>node.type==='button'&&node.props.children==='唱歌').props.onClick()

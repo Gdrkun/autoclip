@@ -1,8 +1,10 @@
 import { t } from '../../i18n'
 import { selectionPreferencePresets, toggleSelectionPreference } from './selectionPreferencePresets'
+import CharacterBackground from './CharacterBackground'
 import './selection-preferences.css'
 
-export default function SelectionPreferences({ value, onChange, disabled }: {
+export default function SelectionPreferences({ value, backgroundQuery = '', onBackgroundChange, onChange, disabled }: {
+  backgroundQuery?: string; onBackgroundChange?: (value: string) => void
   value: string; onChange: (value: string) => void; disabled: boolean
 }) {
   return <section className="studio-selection-preferences" aria-label={t('选片偏好')}>
@@ -18,6 +20,7 @@ export default function SelectionPreferences({ value, onChange, disabled }: {
     <textarea id="studio-selection-instruction" aria-label={t('制作要求')} rows={3} maxLength={1000} disabled={disabled}
       placeholder={t('例如：优先唱歌、搞笑互动和玩梗，少选日常闲聊；保留铺垫和完整笑点。')}
       value={value} onChange={event => onChange(event.target.value)}/>
+    {onBackgroundChange && <CharacterBackground query={backgroundQuery} onChange={onBackgroundChange} disabled={disabled}/>}
     <div className="studio-selection-note"><span>{t('只按素材中的真实内容选择；字幕未体现的歌声或画面梗可能无法判断。')}</span><span>{value.length}/1000</span></div>
   </section>
 }
