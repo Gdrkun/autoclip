@@ -111,6 +111,13 @@ def cancel_speaker_subtitles(project_id: str, db: Session = Depends(get_db)):
     return value
 
 
+@router.post('/{project_id}/speaker-subtitles/ensure')
+def ensure_speaker_subtitles(project_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    from backend.services.speaker_autoflow import enqueue
+    return call(enqueue, project_id)
+
+
 @router.post('/{project_id}/pause-processing')
 def pause_audio_processing(project_id: str, db: Session = Depends(get_db)):
     project_or_404(project_id, db)

@@ -276,6 +276,7 @@ def _analyze(project_id, prefs, url, browser):
         from backend.services.studio import intelligence
         if not intelligence.ready():
             raise ValueError('此方案需要视觉模型，请在设置中配置后重试；原素材已保留')
+        _prepare_speaker_captions(project_id, video)
         events, coverage = analyze(video, prefs, stage, instruction) if instruction else analyze(video, prefs, stage)
         stage('组织推广开头与成片草稿' if prefs.goal == 'promo' else '整理高光成片草稿')
         drafts = make_drafts(events, prefs, instruction, source_duration=intelligence._probe(video).get('duration'))
@@ -478,13 +479,39 @@ def ensure_project_thumbnail(project_id):
         logger.warning('Project thumbnail generation failed', exc_info=True)
 
 
+def _prepare_speaker_captions(project_id, video):
+    from backend.services.speaker_integration import ensure_for_project
+    previous = (store.read(project_id).get('analysis') or {}).get('message')
+    changed = False
+    def progress(done, total, reused):
+        nonlocal changed
+        changed = True
+        def update(data):
+            if isinstance(data.get('analysis'), dict) and data['analysis'].get('status') == 'running':
+                data['analysis'].update(message='正在识别说话人字幕', percent=round(done * 100 / total),
+                    completed_chunks=done, total_chunks=total, reused_chunks=reused)
+        store.change(project_id, update)
+    try:
+        return ensure_for_project(project_id, video, on_progress=progress)
+    finally:
+        if changed:
+            def restore(data):
+                if isinstance(data.get('analysis'), dict) and data['analysis'].get('message') == '正在识别说话人字幕':
+                    data['analysis']['message'] = previous or '正在制作可发布成片'
+                    data['analysis'].pop('percent', None)
+            store.change(project_id, restore)
+
+
 def run_content(project_id, video, instruction=''):
     """Run the existing content pipeline in this worker, without a second broker queue."""
     from backend.tasks.processing import process_video_pipeline
-    srt = video.parent / 'input.srt'
+    from backend.services.publish_export import find_source_srt
+    sibling = video.with_suffix('.srt')
+    conventional = video.parent / 'input.srt'
+    srt = sibling if sibling.is_file() else conventional if conventional.is_file() else find_source_srt(project_id)
     kwargs = {
         'project_id': project_id, 'input_video_path': str(video),
-        'input_srt_path': str(srt) if srt.exists() else None,
+        'input_srt_path': str(srt) if srt else None,
         'clips_only': True,  # studio renders from the source: no clustering, no per-clip re-encode
     }
     kwargs['selection_instruction'] = instruction
@@ -608,6 +635,7 @@ def _distinct_ranges(picked, bounds):
 @with_project_context
 def _content_drafts(project_id, plan, video):
     """Create drafts once from the selected content route, before platform derivation."""
+    speaker_document = _prepare_speaker_captions(project_id, video)
     route = plan.get('recommended_analysis', 'subtitle')
     prefs = Preferences.model_validate(plan['preferences'])
     instruction = plan.get('overrides', {}).get('instruction', '')
@@ -663,6 +691,9 @@ def _content_drafts(project_id, plan, video):
         if silent is None:
             raise
         raise silent from error
+    if speaker_document:
+        for draft in drafts:
+            draft['subtitles'] = True
     return drafts, [event.model_dump() for event in events], coverage
 
 
@@ -1406,6 +1437,7 @@ def _produce_on_demand(project_id, variant_id):
         variant = next(item for item in state['output_variants'] if item['id'] == variant_id)
         raw = next(item for item in state['drafts'] if item['id'] == variant['draft_id'])
         video = source(project_id)
+        _prepare_speaker_captions(project_id, video)
         burned = _source_has_burned_subtitles(project_id, video)
         strategy_id = variant['strategy_id']
         value, framed = _apply_framing(project_id, raw, strategy_id, video, burned, {})

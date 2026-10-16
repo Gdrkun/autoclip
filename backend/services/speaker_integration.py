@@ -38,7 +38,7 @@ def execute(video, *, backend='whisper', prompt='', subtitles=None, on_progress=
     from backend.services.creator_library import asr_prompt
     prompt = asr_prompt(prompt)
     ready = status()
-    if not ready.get(backend):
+    if not ready.get('ready' if subtitles else backend):
         raise ValueError('本地说话人模型未就绪')
     from backend.services import long_audio, long_speaker
     media = long_audio.probe(video)
@@ -121,6 +121,11 @@ def hydrate(project_id, draft):
     return draft
 
 
+def ensure_for_project(project_id, video, subtitles=None, on_progress=None):
+    from backend.services.speaker_autoflow import ensure
+    return ensure(project_id, video, subtitles, on_progress)
+
+
 def transcribe_local(video, output, selection, language='auto'):
     from backend.utils.speech_recognizer import SpeechRecognitionError
     try:
@@ -152,7 +157,8 @@ def job_state(project_id):
     if not path.is_file():
         return {'status': 'idle'}
     value = json.loads(path.read_text(encoding='utf-8'))
-    if value['status'] in ('queued', 'running') and value.get('job_id') not in _active:
+    from backend.services.speaker_autoflow import owner_alive
+    if value['status'] in ('queued', 'running') and value.get('job_id') not in _active and not owner_alive(value):
         value.update(status='failed', error='识别已中断，请重试')
         atomic_json(path, value)
     return value
@@ -161,13 +167,16 @@ def job_state(project_id):
 def start(project_id, backend, prompt, reuse=True):
     from backend.services.studio import jobs
     source = jobs.source(project_id)
-    if not status().get(backend):
+    from backend.services.publish_export import find_source_srt
+    from backend.services.speaker_autoflow import owner
+    reused = find_source_srt(project_id) if reuse else None
+    if not status().get('ready' if reused else backend):
         raise ValueError('本地说话人模型未就绪')
     with _lock:
         previous = job_state(project_id)
         if previous.get('status') in ('queued', 'running'):
             return previous
-        job = {'job_id': uuid.uuid4().hex, 'status': 'queued'}
+        job = {'job_id': uuid.uuid4().hex, 'status': 'queued', **owner()}
         _active.add(job['job_id'])
         atomic_json(job_path(project_id), job)
         try:
@@ -194,7 +203,8 @@ def _recognize(project_id, source, backend, prompt, reuse, job):
                                                'total_chunks': total, 'reused_chunks': reused,
                                                'percent': round(done * 100 / total)})
         atomic_json(job_path(project_id), {**job, 'status': 'running'})
-        with bind(project_id):
+        from backend.services.speaker_autoflow import operation
+        with bind(project_id), operation(project_id):
             from backend.core.project_cancellation import checkpoint, JobStopped
             try:
                 cancelled = json.loads(job_path(project_id).with_name('speaker_stop.json').read_text(encoding='utf-8'))

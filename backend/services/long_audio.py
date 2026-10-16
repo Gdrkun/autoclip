@@ -69,11 +69,11 @@ def exclusive(folder):
     """Cross-process lock: retries cannot race over the same chunk files."""
     lock = folder / 'run.lock'
     with lock.open('a+b') as stream:
-        stream.seek(0)
-        if not stream.read(1):
-            stream.write(b'0'); stream.flush()
-        stream.seek(0)
         try:
+            stream.seek(0)
+            if not stream.read(1):
+                stream.write(b'0'); stream.flush()
+            stream.seek(0)
             if __import__('os').name == 'nt':
                 import msvcrt
                 msvcrt.locking(stream.fileno(), msvcrt.LK_NBLCK, 1)

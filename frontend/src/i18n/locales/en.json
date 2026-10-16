@@ -1809,5 +1809,10 @@
   "恢复默认": "Restore default",
   "原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。": "The video already contains captions, but their location is unknown. They may overlap the speaker captions.",
   "草稿版本已更新，之前的本机暂存已保留。": "The draft version has changed. Your earlier local edits have been kept.",
-  "恢复暂存为新版本": "Restore edits as a new version"
+  "恢复暂存为新版本": "Restore edits as a new version",
+  "正在识别说话人字幕": "Identifying speakers",
+  "自动说话人识别失败，请重试；已有字幕已保留": "Automatic speaker recognition failed. Retry; existing captions have been kept.",
+  "已有字幕内容无效，请检查字幕后重试": "The existing subtitle file is invalid. Check it and retry.",
+  "原视频在识别期间发生变化，请重试": "The source video changed during recognition. Retry.",
+  "字幕在识别期间发生变化，请重试；已有修改已保留": "The subtitles changed during recognition. Retry; your edits have been kept."
 }

@@ -279,6 +279,10 @@ class SimplePipelineAdapter:
             emit_progress(self.project_id, "INGEST", "素材准备完成")
             # 源视频比最短片段还短、或没有音轨又没带字幕：字幕路线注定失败，先拦下，不调用任何模型（RC156 #10/#11）
             from backend.pipeline import media_precheck
+            if not input_srt_path:
+                from backend.services.publish_export import find_source_srt
+                existing = find_source_srt(self.project_id)
+                input_srt_path = str(existing) if existing else None
             blocked = media_precheck.subtitle_route_failure(
                 input_video_path, srt_available=bool(input_srt_path and Path(input_srt_path).exists()))
             if blocked:
@@ -314,6 +318,12 @@ class SimplePipelineAdapter:
                     raise missing_subtitle_failure()
                 logger.info(f"自动生成字幕成功: {srt_path}")
 
+            # Existing SRT skips ASR, but must not skip enabled local diarization.
+            from backend.services.speaker_integration import ensure_for_project
+            def speaker_progress(done, total, reused):
+                emit_progress(self.project_id, "SUBTITLE", "正在识别说话人字幕",
+                              subpercent=transcription_subpercent(done / total))
+            ensure_for_project(self.project_id, Path(input_video_path), srt_path, speaker_progress)
             from backend.services.singing_detection import selection_srt
             srt_path = selection_srt(srt_path, metadata_dir)
             # 快速出片：一次挑片（整段字幕一次给模型）；不可用时回退旧的四步

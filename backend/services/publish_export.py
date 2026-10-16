@@ -65,8 +65,8 @@ def find_source_video(project_id: str) -> Path:
 
 
 def find_source_srt(project_id: str) -> Optional[Path]:
-    from backend.core.path_utils import get_project_directory
-    project_dir = get_project_directory(project_id)
+    from backend.core.path_utils import get_projects_directory
+    project_dir = get_projects_directory() / project_id
     for p in (project_dir / "raw" / "input.srt", project_dir / "metadata" / "input.srt"):
         if p.exists():
             return p

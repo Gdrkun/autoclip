@@ -1809,5 +1809,10 @@
   "恢复默认": "Restaurar padrão",
   "原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。": "O vídeo já contém legendas, mas a posição não foi identificada. Elas podem se sobrepor às legendas por falante.",
   "草稿版本已更新，之前的本机暂存已保留。": "A versão do rascunho mudou. Suas edições locais anteriores foram preservadas.",
-  "恢复暂存为新版本": "Restaurar edições como nova versão"
+  "恢复暂存为新版本": "Restaurar edições como nova versão",
+  "正在识别说话人字幕": "Identificando falantes",
+  "自动说话人识别失败，请重试；已有字幕已保留": "A identificação automática falhou. Tente novamente; as legendas existentes foram preservadas.",
+  "已有字幕内容无效，请检查字幕后重试": "O arquivo de legendas existente é inválido. Confira e tente novamente.",
+  "原视频在识别期间发生变化，请重试": "O vídeo original mudou durante a identificação. Tente novamente.",
+  "字幕在识别期间发生变化，请重试；已有修改已保留": "As legendas mudaram durante a identificação. Tente novamente; suas edições foram preservadas."
 }
