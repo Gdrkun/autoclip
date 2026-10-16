@@ -35,6 +35,40 @@ def put_creator_library(body: creator_library.Library):
     return call(creator_library.save, body).model_dump()
 
 
+from backend.services import creator_knowledge, creator_learning
+
+
+@router.get('/creator-knowledge')
+def get_creator_knowledge(query: str = Query(default='', max_length=200)):
+    return call(creator_learning.dashboard, query)
+
+
+@router.post('/creator-knowledge/references')
+def learn_reference(body: creator_learning.Request):
+    return call(creator_learning.enqueue, body)
+
+
+@router.post('/creator-knowledge/references/{job_id}/retry')
+def retry_reference(job_id: str):
+    return call(creator_learning.retry, job_id)
+
+
+@router.post('/creator-knowledge/references/{job_id}/cancel')
+def cancel_reference(job_id: str):
+    return call(creator_learning.cancel, job_id)
+
+
+@router.patch('/creator-knowledge/items/{item_id}')
+def review_creator_knowledge(item_id: str, body: creator_knowledge.Review):
+    return call(creator_knowledge.review, item_id, body).model_dump()
+
+
+@router.get('/{project_id}/creator-knowledge-context')
+def project_creator_knowledge(project_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(creator_knowledge.project_receipt, project_id)
+
+
 class CorrectionRequest(BaseModel):
     texts: list[str] = Field(max_length=10000)
 

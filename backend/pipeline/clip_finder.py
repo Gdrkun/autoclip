@@ -176,11 +176,13 @@ def find_clips(srt_entries: list[dict[str, Any]], call, *, threshold: float, met
     `window` defaults to `window_size()` (smaller windows for local models)."""
     from .concurrency import map_chunks
     from .selection_preferences import selection_prompt
-    preference_prompt = selection_prompt(selection_instruction)
     rows = [{'start': to_seconds(e['start_time']), 'end': to_seconds(e['end_time']), 'text': str(e.get('text') or '').strip()}
             for e in srt_entries if str(e.get('text') or '').strip()]
     if not rows:
         raise ClipFinderError('字幕为空')
+    from backend.services.creator_knowledge import set_material
+    set_material('\n'.join(row['text'] for row in rows))
+    preference_prompt = selection_prompt(selection_instruction)
     profile = short_video_profile(profile_from_srt(srt_entries))
     total = max(rows[-1]['end'] - rows[0]['start'], 1.0)
     window = window or window_size()

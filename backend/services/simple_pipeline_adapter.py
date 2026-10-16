@@ -324,6 +324,9 @@ class SimplePipelineAdapter:
                 emit_progress(self.project_id, "SUBTITLE", "正在识别说话人字幕",
                               subpercent=transcription_subpercent(done / total))
             ensure_for_project(self.project_id, Path(input_video_path), srt_path, speaker_progress)
+            from backend.services.creator_knowledge import set_material
+            from backend.utils.text_processor import TextProcessor
+            set_material('\n'.join(cue['text'] for cue in TextProcessor.parse_srt(Path(srt_path))))
             from backend.services.singing_detection import selection_srt
             srt_path = selection_srt(srt_path, metadata_dir)
             # 快速出片：一次挑片（整段字幕一次给模型）；不可用时回退旧的四步
