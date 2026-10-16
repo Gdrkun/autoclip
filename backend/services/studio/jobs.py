@@ -600,7 +600,10 @@ def _complete_thought_bounds(project_id, clips):
     with llm_usage.stage('boundaries'), llm_usage.timed('boundaries'):
         from backend.services.singing_detection import preserve_song_bounds
         refined = boundaries.refine_clips(rows, clips, call, boundaries.audio_silences(source(project_id)) if audio.has_audio(source(project_id)) else None)
-        return preserve_song_bounds(clips, refined)
+        from backend.services.visual_reactions import preserve_bounds
+        from backend.services.visual_reactions import project_context as reaction_context
+        with reaction_context(project_id):
+            return preserve_bounds(clips, preserve_song_bounds(clips, refined))
 
 
 MAX_DRAFT_OVERLAP = 0.5  # share of the shorter clip two content drafts may have in common
@@ -679,6 +682,9 @@ def _content_drafts(project_id, plan, video):
         raise ValueError('没有可用的自动分析路径，请检查模型设置后重试')
     if not intelligence.ready():
         raise ValueError('请先在设置中配置视觉理解模型')
+    from backend.services import visual_reactions
+    visual_reactions.analyze(project_id, video, progress=lambda phase, done, total: store.change(
+        project_id, lambda data: data['analysis'].update(message='正在复核连续画面反应', completed_chunks=done, total_chunks=total)))
     try:
         events, coverage = analyze(video, prefs, instruction=instruction) if instruction else analyze(video, prefs)
         drafts = make_drafts(events, prefs, plan.get('overrides', {}).get('instruction', ''), source_duration=intelligence._probe(video).get('duration'))

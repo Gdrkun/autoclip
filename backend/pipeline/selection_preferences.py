@@ -16,7 +16,8 @@ def selection_prompt(value: str | None) -> str:
     from backend.services.character_background import context_prompt
     from backend.services.creator_library import context_prompt as library_prompt
     from backend.services.singing_detection import context_prompt as singing_prompt
-    background = context_prompt() + library_prompt() + singing_prompt()
+    from backend.services.visual_reactions import context_prompt as reaction_prompt
+    background = context_prompt() + library_prompt() + singing_prompt() + reaction_prompt()
     if not instruction:
         return background
     return '''
@@ -40,6 +41,7 @@ def cache_suffix(value: str | None) -> str:
     from backend.services.character_background import context_key
     from backend.services.creator_library import context_key as library_key
     from backend.services.singing_detection import context_key as singing_key
-    background = context_key() + library_key() + singing_key()
+    from backend.services.visual_reactions import context_key as reaction_key
+    background = context_key() + library_key() + singing_key() + reaction_key()
     content = instruction + ('\nbackground:' + background if background else '')
     return '.selection-' + hashlib.sha256(content.encode('utf-8')).hexdigest()[:16] if content else ''

@@ -22,6 +22,37 @@ from backend.services.studio.models import Draft, CreateDraft, DuplicateDraft, E
 router = APIRouter()
 
 
+from backend.services import visual_reactions
+
+
+@router.get('/visual-reactions/status')
+def visual_reaction_status():
+    return call(visual_reactions.status)
+
+
+@router.get('/{project_id}/visual-reactions')
+def visual_reaction_report(project_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(visual_reactions.public_report, project_id)
+
+
+class ReactionReview(BaseModel):
+    run_id: str = Field(pattern=r'^[a-f0-9]{64}$')
+    ignored: bool
+
+
+@router.patch('/{project_id}/visual-reactions/{event_id}')
+def review_visual_reaction(project_id: str, event_id: str, body: ReactionReview, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(visual_reactions.ignore, project_id, event_id, body.run_id, body.ignored)
+
+
+@router.get('/{project_id}/visual-reactions/frames/{run_id}/{window_id}/{index}')
+def visual_reaction_frame(project_id: str, run_id: str, window_id: int, index: int, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return FileResponse(call(visual_reactions.frame_path, project_id, run_id, window_id, index), media_type='image/jpeg')
+
+
 from backend.services import creator_library, singing_detection
 
 
@@ -275,6 +306,8 @@ async def import_visual(
     instruction: str = Form('', max_length=1000),
     background_query: str = Form('', max_length=200),
     detect_singing: bool = Form(False),
+    visual_reactions: bool = Form(False),
+    reaction_budget: int = Form(8, ge=1, le=12),
     platforms: list[str] = Form(['douyin']),
     auto_start: bool = Form(False),
     portrait_style: Literal['auto', 'interview', 'podcast'] = Form('auto'),
@@ -315,6 +348,7 @@ async def import_visual(
             await subtitle.close()
     prefs = ImportOptions(
         goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction, background_query=background_query, detect_singing=detect_singing,
+        visual_reactions=visual_reactions, reaction_budget=reaction_budget,
         platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
         recommended_template=recommended_template,
         branding={'outro_enabled': brand_outro_enabled},

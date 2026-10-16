@@ -327,8 +327,20 @@ class SimplePipelineAdapter:
             from backend.services.creator_knowledge import set_material
             from backend.utils.text_processor import TextProcessor
             set_material('\n'.join(cue['text'] for cue in TextProcessor.parse_srt(Path(srt_path))))
+            from backend.services import visual_reactions
+            def reaction_progress(phase, done, total):
+                message = '正在扫描画面变化与声音线索' if phase == 'scan' else '正在复核连续画面反应'
+                subpercent = 95 + (0 if phase == 'scan' else 2) + done*2/max(1, total)
+                emit_progress(self.project_id, 'SUBTITLE', message, subpercent=subpercent)
+                from backend.services.studio import store
+                def update(data):
+                    if (data.get('analysis') or {}).get('status') == 'running':
+                        data['analysis'].update(message=message, completed_chunks=done, total_chunks=total)
+                store.change(self.project_id, update)
+            visual_reactions.analyze(self.project_id, Path(input_video_path), srt_path, reaction_progress)
             from backend.services.singing_detection import selection_srt
             srt_path = selection_srt(srt_path, metadata_dir)
+            srt_path = visual_reactions.selection_srt(srt_path, metadata_dir)
             # 快速出片：一次挑片（整段字幕一次给模型）；不可用时回退旧的四步
             checkpoint(self.project_id)
             titled_clips = self._find_clips_in_one_pass(srt_path, metadata_dir, **preference_kwargs) if clips_only else None

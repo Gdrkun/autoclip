@@ -204,10 +204,12 @@ def _sampling_bounds(video):
         raise VisionRequestError('missing_resource', '无法读取素材画面，请检查视频后重试；原素材已保留') from None
 
 
-def sample(video, times, folder, width=640):
+def sample(video, times, folder, width=640, check_cancelled=None):
     last_seek, retry_step = _sampling_bounds(video)
     content = []
     for index, timestamp in enumerate(times):
+        if check_cancelled:
+            check_cancelled()
         if not math.isfinite(timestamp) or timestamp < 0:
             raise ValueError('画面采样时间必须在原素材范围内')
         timestamp = min(timestamp, last_seek)
@@ -303,6 +305,8 @@ def analyze(video: Path, prefs: Preferences, on_stage=None, instruction=""):
     from backend.services.creator_library import context_prompt as library_prompt
     from backend.services.singing_detection import context_prompt as singing_prompt
     prompt += context_prompt() + library_prompt() + singing_prompt()
+    from backend.services.visual_reactions import context_prompt as reaction_prompt
+    prompt += reaction_prompt()
     if instruction:
         prompt += '\n用户制作要求（仅在可见证据支持时遵循）：' + instruction
     if on_stage:

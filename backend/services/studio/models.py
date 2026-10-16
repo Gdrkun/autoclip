@@ -305,6 +305,8 @@ class ImportOptions(BaseModel):
     instruction: str = Field(default='', max_length=1000)
     background_query: str = Field(default='', max_length=200, exclude_if=lambda value: not value)
     detect_singing: bool = Field(default=False, exclude_if=lambda value: not value)
+    visual_reactions: bool = Field(default=False, exclude_if=lambda value: not value)
+    reaction_budget: int = Field(default=8, ge=1, le=12, exclude_if=lambda value: value == 8)
     platforms: list[str] = Field(default_factory=lambda: ['douyin'], min_length=1, max_length=8)
     auto_start: bool = False
     portrait_style: Literal['auto', 'interview', 'podcast'] = 'auto'
