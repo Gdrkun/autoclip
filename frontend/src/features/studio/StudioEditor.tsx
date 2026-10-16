@@ -123,6 +123,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [suggestion, setSuggestion] = useState<Draft | null>(null)
   const [undo, setUndo] = useState<Draft | null>(null)
   const video = useRef<HTMLVideoElement>(null)
+  const speakerSeek = useRef<number | null>(null)
   const localKey = `autoclip.studio.${projectId}.${draftId}`
   const dirty = !!draft && JSON.stringify(draft) !== saved
   const artworkStyle = isArtworkStyle(draft?.title_style)
@@ -163,7 +164,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     return () => window.removeEventListener('beforeunload', warn)
   }, [draft, dirty])
   useEffect(() => {
-    if (video.current && scene && !showRendered) video.current.currentTime = scene.start
+    if (video.current && scene && !showRendered && video.current.readyState >= 1) {
+      video.current.currentTime = speakerSeek.current ?? scene.start
+      speakerSeek.current = null
+    }
   }, [scene?.id, scene?.start, showRendered])
   useEffect(() => { if (draft) setMuted(!draft.original_audio) }, [draft?.original_audio])
   const patch = (changes: Partial<Draft>) => { if (draft) { setDraft({...draft, ...changes}); setShowRendered(false); setError('') } }
@@ -211,7 +215,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     <fieldset disabled={!!busy} className="studio-fieldset">
       <div className="studio-editor-grid"><section className="studio-editor-main"><div className="studio-editor-sticky"><div className={`studio-stage studio-stage--${draft.aspect}`}>
         <div className="studio-video-frame" style={{aspectRatio: draft.aspect==='portrait'?'9/16':draft.aspect==='landscape'?'16/9':undefined}}>
-          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = scene.start } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
+          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = speakerSeek.current ?? scene.start; speakerSeek.current = null } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
           {!showRendered && draft.caption_mask && (draft.subtitles || !draft.speaker_subtitles) && <CaptionMaskPreview video={video} band={draft.caption_mask} sourceSize={sourceSize}
             fit={draft.layout === 'crop' && frameModeAt(scene, currentTime) !== 'fit' ? 'cover' : 'contain'} position={cropAt(scene, currentTime, draft.crop_x ?? .5)} />}
           {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000}/>
@@ -227,11 +231,21 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         <p className="studio-muted" role="status">{t('原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。')}</p>}
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
       {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
-      <SpeakerSubtitles projectId={projectId} draftId={draftId} document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
+      <SpeakerSubtitles key={`${projectId}:${draftId}`} projectId={projectId} draftId={draftId} scenes={draft.scenes} selectedScene={selected}
+        autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
+        document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
         onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })}
         onApply={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source', subtitles: true, subtitles_auto_suppressed: false,
           caption_mask: draft.caption_mask || (workspace.generation?.source_has_burned_subtitles ? workspace.generation.burned_caption_band : null) })} onEnabled={value => patch({ speaker_colors: value })}
-        onSeek={seconds => { const v = video.current; if (v) { v.currentTime = seconds; setCurrentTime(seconds) } }}/>
+        onSeek={(seconds, sceneIndex = selected) => {
+          speakerSeek.current = seconds
+          setShowRendered(false)
+          if (sceneIndex !== selected) setSelected(sceneIndex)
+          else if (!showRendered && video.current && video.current.readyState >= 1) {
+            video.current.currentTime = seconds; speakerSeek.current = null
+          }
+          setCurrentTime(seconds)
+        }}/>
       <details className="studio-details studio-source-details"><summary>{t("调整镜头")}{' '}<span className="ac-mono">{draft.scenes.length}</span>{' '}{t("· 顺序与起止点")}</summary>
         <Btn size="sm" disabled={draft.scenes.length >= 30} onClick={() => setPicker('append')}>{t("追加镜头")}</Btn>
         {draft.scenes.map((s,i)=><div className="studio-scene-row" key={s.id}><Btn size="sm" onClick={()=>{setSelected(i);setShowRendered(false)}}>{i+1}. {s.label}</Btn><label>{t("起点（秒）")}<input type="number" min={0} step={.1} value={s.start} onChange={e=>updateScene(i,{start:Number(e.target.value)})}/></label><label>{t("终点（秒）")}<input type="number" min={0} step={.1} value={s.end} onChange={e=>updateScene(i,{end:Number(e.target.value)})}/></label><div className="studio-actions"><Btn size="sm" onClick={() => setPicker(i)}>{t("替换")}</Btn><Btn size="sm" disabled={i===0} onClick={()=>patch({scenes:moveScene(draft,i,-1).scenes})}>{t("上移")}</Btn><Btn size="sm" disabled={i===draft.scenes.length-1} onClick={()=>patch({scenes:moveScene(draft,i,1).scenes})}>{t("下移")}</Btn><Btn size="sm" disabled={draft.scenes.length===1} onClick={()=>{patch({scenes:draft.scenes.filter((_,index)=>index!==i)});setSelected(0)}}>{t("移除")}</Btn></div></div>)}

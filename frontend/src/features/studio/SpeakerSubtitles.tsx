@@ -3,8 +3,8 @@ import { t } from '../../i18n'
 import { Btn } from '../../ui'
 import api from '../../services/api'
 import { errorText } from './api'
-import type { SpeakerCaptionLayout, SpeakerDocument } from './types'
-import { insertSpeakerCue, moveSpeakerCue, sortSpeakerCues } from './speakerSubtitleEditing'
+import type { Scene, SpeakerCaptionLayout, SpeakerDocument } from './types'
+import { insertSpeakerCueInScenes, moveSpeakerCueInScenes, sortSpeakerCuesInScenes, speakerCuesForScenes, speakerCueSeek } from './speakerSubtitleEditing'
 import './speaker-subtitles.css'
 import CorrectionSuggestions from './CorrectionSuggestions'
 
@@ -21,10 +21,12 @@ function Icon({ name }: { name: IconName }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 
-export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, onChange, onApply, onLayout, onEnabled, onSeek }: {
+export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, scenes, selectedScene = 0, autoEnabled = true, onChange, onApply, onLayout, onEnabled, onSeek }: {
   projectId: string; draftId: string; document?: SpeakerDocument | null; enabled: boolean; dirty: boolean; currentTime: number
+  scenes?: Pick<Scene, 'start' | 'end'>[]; selectedScene?: number
+  autoEnabled?: boolean
   layout?: SpeakerCaptionLayout | null; onLayout: (value: SpeakerCaptionLayout | null) => void
-  onChange: (value: SpeakerDocument) => void; onApply: (value: SpeakerDocument) => void; onEnabled: (value: boolean) => void; onSeek: (seconds: number) => void
+  onChange: (value: SpeakerDocument) => void; onApply: (value: SpeakerDocument) => void; onEnabled: (value: boolean) => void; onSeek: (seconds: number, sceneIndex?: number) => void
 }) {
   const [backend, setBackend] = useState('whisper')
   const [prompt, setPrompt] = useState('')
@@ -35,8 +37,12 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const [recognized, setRecognized] = useState<SpeakerDocument | null>(null)
   const apply = useRef(onApply)
   apply.current = onApply
-  const requested = useRef(!document)
+  const requested = useRef(!document && enabled && autoEnabled)
+  const autoRequested = useRef(false)
   const base = `/studio/${projectId}/speaker-subtitles`
+  useEffect(() => {
+    if (!document) requested.current = enabled && autoEnabled
+  }, [document, enabled, autoEnabled])
   useEffect(() => {
     let active = true
     const refresh = async () => {
@@ -45,7 +51,13 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         if (!active) return
         setJob(state.job)
         setRecognized(state.document)
-        if (state.document && requested.current && ['completed', 'idle'].includes(state.job.status)) {
+        if (!state.document && requested.current && !autoRequested.current && ['idle', 'failed'].includes(state.job.status)) {
+          autoRequested.current = true
+          const automatic = await api.post<unknown, State['job']>(base + '/ensure')
+          if (!active) return
+          setJob(automatic)
+        }
+        if (state.document && requested.current && !['queued', 'running'].includes(state.job.status)) {
           requested.current = false
           apply.current({ ...state.document, speakers: state.document.speakers.map((speaker, index) => ({ ...speaker,
             color: speaker.color === '#FFFFFF' ? ['#FF91BD', '#C0A5FF'][index % 2] : speaker.color })) })
@@ -65,6 +77,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
     } catch (e) { setError(errorText(e)) }
     finally { setBusy(false) }
   }
+  const visibleCues = document ? speakerCuesForScenes(document.subtitles, scenes) : []
   const processing = busy || ['queued', 'running'].includes(job.status)
   const layoutValue = layout || { font_scale: 1, x: .5, y: .91 }
   const outline = { enabled: layout?.outline_enabled !== false, width: layout?.outline_width ?? 2, color: layout?.outline_color || '#000000' }
@@ -75,7 +88,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
     <summary className="speaker-panel-summary">
       <span className="speaker-panel-symbol"><Icon name="people"/></span>
       <span className="speaker-panel-title"><strong>{t('说话人字幕')}</strong><span>{t('本地识别和纠错，不重新分析高光。')}</span></span>
-      {document && <span className="speaker-panel-count">{document.subtitles.length} {t('条字幕')}</span>}
+      {document && <span className="speaker-panel-count">{visibleCues.length} {t('条字幕')}</span>}
       <span className="speaker-panel-chevron"><Icon name="chevron"/></span>
     </summary>
     <div className="speaker-panel-body">
@@ -97,7 +110,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
       {job.total_chunks && <p className="studio-muted">{t('分段进度 {{done}} / {{total}}', {done:job.completed_chunks||0,total:job.total_chunks})}</p>}
       {(error || job.error) && <p role="alert" className="speaker-error">{t(error || job.error || '')}</p>}
       {document && <>
-        <CorrectionSuggestions projectId={projectId} document={document} onChange={onChange}/>
+        <CorrectionSuggestions projectId={projectId} document={document} cueIds={visibleCues.map(cue => cue.id)} onChange={onChange}/>
         <section className="speaker-section">
           <div className="speaker-section-head"><div><h3>{t('人物与颜色')}</h3><p>{t('给说话人命名，颜色会跟随对应字幕。')}</p></div>
             <label className="speaker-color-switch"><input type="checkbox" aria-label={t('启用双色字幕')} checked={enabled} onChange={e => onEnabled(e.target.checked)}/><span className="speaker-switch-track"/><span>{t('启用双色字幕')}</span></label>
@@ -128,9 +141,9 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           </div>
         </section>
         <section className="speaker-section speaker-captions-section">
-          <div className="speaker-section-head"><div><h3>{t('逐句校对')}<span className="speaker-small-count">{document.subtitles.length}</span></h3><p>{t('排序不改变字幕时间；播放顺序由时间决定。')}</p></div><Btn size="sm" onClick={() => patch({ subtitles: sortSpeakerCues(document.subtitles) })}>{t('按时间排序')}</Btn></div>
+          <div className="speaker-section-head"><div><h3>{t('逐句校对')}<span className="speaker-small-count">{visibleCues.length}</span></h3><p>{t('仅显示当前切片的字幕；时间按原视频计。')}</p></div><Btn size="sm" onClick={() => patch({ subtitles: sortSpeakerCuesInScenes(document.subtitles, scenes) })}>{t('按时间排序')}</Btn></div>
           <ol className="speaker-cues">
-            {document.subtitles.map((cue, index) => {
+            {visibleCues.map((cue, index) => {
               const update = (changes: Partial<typeof cue>) => patch({ subtitles: document.subtitles.map(c => c.id === cue.id ? { ...c, ...changes, assignment_reason: 'manual' } : c) })
               const active = cue.start_ms <= currentTime * 1000 && currentTime * 1000 < cue.end_ms
               const speaker = document.speakers.find(s => s.speaker_id === cue.speaker_id)
@@ -142,7 +155,10 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                     <span className="speaker-time-arrow" aria-hidden="true">→</span>
                     <label><span>{t('终点（秒）')}</span><input className="ac-input" aria-label={`${t('终点（秒）')} ${cue.id}`} type="number" min={0} max={document.duration_ms / 1000} step={.01} value={cue.end_ms / 1000} onChange={e => update({ end_ms: Math.round(Number(e.target.value) * 1000) })}/></label>
                   </div>
-                  <Btn className="speaker-audition" size="sm" onClick={() => onSeek(cue.start_ms / 1000)}><Icon name="play"/>{t('试听')}</Btn>
+                  <Btn className="speaker-audition" size="sm" onClick={() => {
+                    const target = speakerCueSeek(cue, scenes || [{ start: 0, end: document.duration_ms / 1000 }], selectedScene)
+                    if (target) onSeek(target.seconds, target.sceneIndex)
+                  }}><Icon name="play"/>{t('试听')}</Btn>
                 </div>
                 <textarea className="speaker-cue-text ac-input" aria-label={`${t('字幕文本')} ${cue.id}`} rows={2} maxLength={2000} value={cue.text} onChange={e => update({ text: e.target.value })}/>
                 <div className="speaker-cue-footer">
@@ -154,17 +170,17 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                     <select className="speaker-inline-select" aria-label={`${t('字幕行')} ${cue.id}`} value={cue.layer} onChange={e => update({ layer: Number(e.target.value) })}><option value={0}>{t('下行')}</option><option value={1}>{t('上行')}</option></select>
                   </div>
                   <div className="speaker-cue-actions">
-                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('上移')} aria-label={`${t('上移')} ${cue.id}`} disabled={index === 0} onClick={() => patch({ subtitles: moveSpeakerCue(document.subtitles, index, -1) })}><Icon name="up"/></Btn>
-                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('下移')} aria-label={`${t('下移')} ${cue.id}`} disabled={index === document.subtitles.length - 1} onClick={() => patch({ subtitles: moveSpeakerCue(document.subtitles, index, 1) })}><Icon name="down"/></Btn>
-                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('在此后补句')} aria-label={`${t('在此后补句')} ${cue.id}`} disabled={document.subtitles.length >= 10000} onClick={() => patch({ subtitles: insertSpeakerCue(document, currentTime, crypto.randomUUID(), t('新增字幕'), cue.id) })}><Icon name="plus"/></Btn>
+                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('上移')} aria-label={`${t('上移')} ${cue.id}`} disabled={index === 0} onClick={() => patch({ subtitles: moveSpeakerCueInScenes(document.subtitles, scenes, cue.id, -1) })}><Icon name="up"/></Btn>
+                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('下移')} aria-label={`${t('下移')} ${cue.id}`} disabled={index === visibleCues.length - 1} onClick={() => patch({ subtitles: moveSpeakerCueInScenes(document.subtitles, scenes, cue.id, 1) })}><Icon name="down"/></Btn>
+                    <Btn className="speaker-icon-button" variant="text" size="sm" title={t('在此后补句')} aria-label={`${t('在此后补句')} ${cue.id}`} disabled={document.subtitles.length >= 10000} onClick={() => patch({ subtitles: insertSpeakerCueInScenes(document, scenes, currentTime, crypto.randomUUID(), t('新增字幕'), cue.id) })}><Icon name="plus"/></Btn>
                     <Btn className="speaker-icon-button" variant="danger" size="sm" title={t('移除')} aria-label={`${t('移除')} ${cue.id}`} onClick={() => patch({ subtitles: document.subtitles.filter(c => c.id !== cue.id) })}><Icon name="remove"/></Btn>
                   </div>
                 </div>
               </li>
             })}
           </ol>
-          {!document.subtitles.length && <p className="speaker-empty">{t('还没有字幕，播放视频后添加第一句。')}</p>}
-          <div className="speaker-bottom-bar"><Btn className="speaker-add-button" disabled={document.subtitles.length >= 10000} onClick={() => patch({ subtitles: insertSpeakerCue(document, currentTime, crypto.randomUUID(), t('新增字幕')) })}><Icon name="plus"/>{t('补充字幕')}</Btn>
+          {!visibleCues.length && <p className="speaker-empty">{t('当前切片没有对应字幕，可补充字幕。')}</p>}
+          <div className="speaker-bottom-bar"><Btn className="speaker-add-button" disabled={document.subtitles.length >= 10000} onClick={() => patch({ subtitles: insertSpeakerCueInScenes(document, scenes, currentTime, crypto.randomUUID(), t('新增字幕')) })}><Icon name="plus"/>{t('补充字幕')}</Btn>
             {!dirty && <a className="speaker-ass-link" href={`${api.defaults.baseURL}/studio/${projectId}/drafts/${draftId}/speaker-subtitles.ass`} download>{t('下载 ASS')}<span aria-hidden="true">↗</span></a>}
           </div>
           <p className="speaker-save-hint">{t('修改后保存草稿，再导出字幕或成片。')}</p>

@@ -1,4 +1,54 @@
-import type { SpeakerCaptionLayout, SpeakerCue, SpeakerDocument } from './types'
+import type { Scene, SpeakerCaptionLayout, SpeakerCue, SpeakerDocument } from './types'
+
+type ScopeScene = Pick<Scene, 'start' | 'end'>
+export function speakerCuesForScenes(cues: SpeakerCue[], scenes?: ScopeScene[]) {
+  return scenes ? cues.filter(cue => scenes.some(scene => cue.start_ms < scene.end * 1000 && cue.end_ms > scene.start * 1000)) : cues
+}
+
+function replaceScopedOrder(cues: SpeakerCue[], scoped: SpeakerCue[], ordered: SpeakerCue[]) {
+  const ids = new Set(scoped.map(cue => cue.id))
+  let index = 0
+  return cues.map(cue => ids.has(cue.id) ? ordered[index++] : cue)
+}
+
+export function sortSpeakerCuesInScenes(cues: SpeakerCue[], scenes?: ScopeScene[]) {
+  const scoped = speakerCuesForScenes(cues, scenes)
+  return replaceScopedOrder(cues, scoped, sortSpeakerCues(scoped))
+}
+
+export function moveSpeakerCueInScenes(cues: SpeakerCue[], scenes: ScopeScene[] | undefined, id: string, delta: number) {
+  const scoped = speakerCuesForScenes(cues, scenes)
+  const index = scoped.findIndex(cue => cue.id === id)
+  return replaceScopedOrder(cues, scoped, moveSpeakerCue(scoped, index, delta))
+}
+
+export function speakerCueSeek(cue: SpeakerCue, scenes: ScopeScene[], preferred = 0) {
+  const matches = (scene: ScopeScene) => cue.start_ms < scene.end * 1000 && cue.end_ms > scene.start * 1000
+  const sceneIndex = scenes[preferred] && matches(scenes[preferred]) ? preferred : scenes.findIndex(matches)
+  return sceneIndex < 0 ? null : { seconds: Math.max(cue.start_ms / 1000, scenes[sceneIndex].start), sceneIndex }
+}
+
+export function insertSpeakerCueInScenes(document: SpeakerDocument, scenes: ScopeScene[] | undefined,
+  seconds: number, id: string, text: string, afterId?: string): SpeakerCue[] {
+  if (!scenes) return insertSpeakerCue(document, seconds, id, text, afterId)
+  const after = document.subtitles.find(cue => cue.id === afterId)
+  const scene = after ? scenes.find(scene => after.start_ms < scene.end * 1000 && after.end_ms > scene.start * 1000)
+    : scenes.find(scene => scene.start <= seconds && seconds < scene.end) || scenes[0]
+  if (!scene) return document.subtitles
+  const left = Math.round(scene.start * 1000), right = Math.min(document.duration_ms, Math.round(scene.end * 1000))
+  if (right - left < 100) return document.subtitles
+  const start = Math.max(left, Math.min(after ? after.end_ms : Math.round(seconds * 1000), right - 100))
+  const scoped = speakerCuesForScenes(document.subtitles, [scene])
+  const next = sortSpeakerCues(scoped).find(cue => cue.start_ms > start)
+  const cue: SpeakerCue = { id, text, start_ms: start, end_ms: Math.min(right, start + 2000, next?.start_ms ?? right),
+    speaker_id: null, layer: 0, assignment_reason: 'manual' }
+  const afterIndex = document.subtitles.findIndex(cue => cue.id === afterId)
+  const followingIndex = next ? document.subtitles.findIndex(cue => cue.id === next.id) : -1
+  const lastIndex = scoped.length ? document.subtitles.findIndex(cue => cue.id === scoped[scoped.length - 1].id) + 1 : document.subtitles.length
+  const result = [...document.subtitles]
+  result.splice(afterIndex >= 0 ? afterIndex + 1 : followingIndex >= 0 ? followingIndex : lastIndex, 0, cue)
+  return result
+}
 
 export function sortSpeakerCues(cues: SpeakerCue[]): SpeakerCue[] {
   return [...cues].sort((a, b) => a.start_ms - b.start_ms || a.layer - b.layer)

@@ -1810,6 +1810,8 @@
   "原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。": "El vídeo ya contiene subtítulos, pero no se conoce su ubicación. Pueden superponerse a los subtítulos por hablante.",
   "草稿版本已更新，之前的本机暂存已保留。": "La versión del borrador ha cambiado. Se han conservado tus cambios locales anteriores.",
   "恢复暂存为新版本": "Restaurar cambios como una nueva versión",
+  "仅显示当前切片的字幕；时间按原视频计。": "Solo se muestran los subtítulos de este clip. Los tiempos corresponden al vídeo original.",
+  "当前切片没有对应字幕，可补充字幕。": "No hay subtítulos para este clip. Puedes añadirlos.",
   "正在识别说话人字幕": "Identificando hablantes",
   "自动说话人识别失败，请重试；已有字幕已保留": "Falló la identificación automática. Reintenta; se han conservado los subtítulos existentes.",
   "已有字幕内容无效，请检查字幕后重试": "El archivo de subtítulos existente no es válido. Revísalo y reintenta.",
