@@ -9,6 +9,7 @@
 - [本分支功能、准备、使用与限制](FORK_GUIDE.md)
 - [本地说话人字幕、样式及切片隔离](SPEAKER_SUBTITLES_INTEGRATION.md)
 - [AI 选片偏好与公开人物背景](SELECTION_PREFERENCES.md)
+- [画面反应辅助选片与连续帧证据](VISUAL_REACTIONS.md)
 - [人物知识库、参考切片学习、字幕词库与反馈](CREATOR_KNOWLEDGE.md)
 - [临时工作目录](TEMPORARY_STORAGE.md)
 - [开发变更记录](change-history.md) · [个人 fork 反馈](https://github.com/Gdrkun/autoclip/issues)
