@@ -1806,5 +1806,8 @@
   "目录无法写入，请检查路径和权限": "Cannot write to this folder. Check the path and permissions.",
   "读取临时目录失败": "Could not load temporary folder settings",
   "保存临时目录失败": "Could not save temporary folder settings",
-  "恢复默认": "Restore default"
+  "恢复默认": "Restore default",
+  "原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。": "The video already contains captions, but their location is unknown. They may overlap the speaker captions.",
+  "草稿版本已更新，之前的本机暂存已保留。": "The draft version has changed. Your earlier local edits have been kept.",
+  "恢复暂存为新版本": "Restore edits as a new version"
 }

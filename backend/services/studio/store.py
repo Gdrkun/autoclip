@@ -383,6 +383,7 @@ def read(project_id: str, *, recover: bool = True):
         # CLI status commands are observers in another process, not a server restart.
         # A live CLI / MCP producer owns its run: the desktop list must not fail it.
         return data
+    recovered_speaker_drafts = _recover_speaker_captions(path, data)
     interrupted = set()
     cover_finished = _apply_finished_covers(path, data)
     for job in data['jobs']:
@@ -418,7 +419,7 @@ def read(project_id: str, *, recover: bool = True):
         settle_generation(data)
     patched = _apply_io_failure(path, data) or linked or abandoned_claim or cover_finished or settle or bool(interrupted)
     patched = _apply_read_receipts(path, data) or patched
-    patched = _recover_interrupted_run(data) or patched
+    patched = _recover_interrupted_run(data) or bool(recovered_speaker_drafts) or patched
     analysis = data.get('analysis')
     if isinstance(analysis, dict) and analysis.get('status') == 'running' and not analysis.get('instance'):
         analysis.update(status='failed', error='服务已重启，请重试分析')
@@ -426,6 +427,8 @@ def read(project_id: str, *, recover: bool = True):
         try:
             write(project_id, data, _recover_previous=False)
         except OSError:
+            if recovered_speaker_drafts is not None:
+                data['drafts'] = recovered_speaker_drafts
             logger.warning('Studio terminal receipt persistence deferred')
         else:
             _read_failures.pop(path, None)
@@ -435,6 +438,41 @@ def read(project_id: str, *, recover: bool = True):
         _read_failures.pop(path, None)
         _pending_links.pop(path, None)
     return data
+
+def _recover_speaker_captions(path, data):
+    generation = data.get('generation') or {}
+    if (generation.get('status') in ('screening', 'production', 'rendering')
+            or any(job.get('status') in ('queued', 'running') for job in data['jobs'])):
+        return None
+    from backend.services.studio.models import Draft
+    from backend.services.studio.speaker_captions import has_captions, reconcile
+    restored = []
+    changed = False
+    for original in data['drafts']:
+        value = original
+        if original.get('subtitles') is False and has_captions(original):
+            try:
+                candidate = reconcile(original, generation, recover_legacy=True)
+                if candidate.get('subtitles') is True:
+                    candidate.update(revision=original.get('revision', 1) + 1, updated_at=now())
+                    value = Draft.model_validate(candidate).model_dump()
+                    changed = True
+            except (ValueError, TypeError):
+                pass  # Malformed legacy data remains available for the existing editor to explain.
+        restored.append(value)
+    if not changed:
+        return None
+    backup = path.with_name('studio.before-speaker-captions.' + uuid.uuid4().hex + '.json')
+    try:
+        with backup.open('xb') as stream:
+            stream.write(path.read_bytes())
+    except OSError:
+        logger.warning('Speaker subtitle recovery deferred: backup unavailable')
+        return None
+    previous = data['drafts']
+    data['drafts'] = restored
+    return previous
+
 
 def producer_alive(generation):
     """A CLI / MCP producer process (quick_output_runner) that is still running owns the run."""
@@ -578,6 +616,13 @@ def write(project_id, data, *, _recover_previous=True):
         for draft in data.get('drafts', []):
             if not draft.get('speaker_subtitles') and draft.get('speaker_colors', True):
                 draft['speaker_subtitles'] = speaker_document.model_dump()
+    from backend.services.studio.speaker_captions import reconcile
+    for draft in data.get('drafts', []):
+        resolved = reconcile(draft, data.get('generation') or {})
+        if resolved is not draft:
+            # Keep save_draft's returned object identical to the snapshot written to disk.
+            draft.clear()
+            draft.update(resolved)
     # Preserve content-free execution receipts in the same atomic write as business state.
     # Re-screening must not destroy an unobserved production terminal.
     previous = read(project_id, recover=_recover_previous) if path.exists() else {}

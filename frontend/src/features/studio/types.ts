@@ -60,6 +60,7 @@ export interface Draft {
   title_template_version?: 1 | 2 | 3 | 4 | 5 | 6; title_motion?: boolean; title_scale?: number; title_y?: number; title_accent?: string | null
   subtitles: boolean; subtitle_style?: SubtitleStyle; original_audio: boolean; revision: number; updated_at: string; origin: string
   speaker_subtitles?: SpeakerDocument | null; speaker_colors?: boolean; speaker_subtitle_layout?: SpeakerCaptionLayout | null
+  subtitles_auto_suppressed?: boolean; caption_mask?: [number, number] | null
   parent_draft_id?: string | null; parent_revision?: number | null
   /** Automatic template packaging; kept as-is on save so edits never drop it. */
   packaging?: Packaging | null
@@ -93,6 +94,8 @@ export interface GenerationState {
   html_template?: 'editorial' | 'street' | 'classic'
   recommended_template?: 'editorial' | 'street' | 'classic'
   accepted_recommendation?: boolean
+  source_has_burned_subtitles?: boolean
+  burned_caption_band?: [number, number] | null
 }
 export interface PlatformStrategySummary {
   id: string; label: string; aspect: 'portrait' | 'landscape' | 'original'; duration_policy: 'short' | 'long' | 'adaptive'

@@ -21,10 +21,10 @@ function Icon({ name }: { name: IconName }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 
-export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, onChange, onLayout, onEnabled, onSeek }: {
+export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, onChange, onApply, onLayout, onEnabled, onSeek }: {
   projectId: string; draftId: string; document?: SpeakerDocument | null; enabled: boolean; dirty: boolean; currentTime: number
   layout?: SpeakerCaptionLayout | null; onLayout: (value: SpeakerCaptionLayout | null) => void
-  onChange: (value: SpeakerDocument) => void; onEnabled: (value: boolean) => void; onSeek: (seconds: number) => void
+  onChange: (value: SpeakerDocument) => void; onApply: (value: SpeakerDocument) => void; onEnabled: (value: boolean) => void; onSeek: (seconds: number) => void
 }) {
   const [backend, setBackend] = useState('whisper')
   const [prompt, setPrompt] = useState('')
@@ -33,8 +33,8 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const [error, setError] = useState('')
   const [job, setJob] = useState<State['job']>({ status: 'idle' })
   const [recognized, setRecognized] = useState<SpeakerDocument | null>(null)
-  const apply = useRef(onChange)
-  apply.current = onChange
+  const apply = useRef(onApply)
+  apply.current = onApply
   const requested = useRef(!document)
   const base = `/studio/${projectId}/speaker-subtitles`
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           <div className="speaker-recognition-footer">
             <label className="speaker-check"><input type="checkbox" checked={reuse} onChange={e => setReuse(e.target.checked)}/><span>{t('复用已有字幕')}</span></label>
             <div className="speaker-buttons">{processing && <Btn size="sm" onClick={()=>void api.post(base+'/cancel').catch(e=>setError(errorText(e)))}>{t('暂停识别')}</Btn>}<Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
-              {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing} onClick={() => onChange(recognized)}>{t('应用识别结果')}</Btn>}
+              {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing} onClick={() => onApply(recognized)}>{t('应用识别结果')}</Btn>}
             </div>
           </div>
         </div>

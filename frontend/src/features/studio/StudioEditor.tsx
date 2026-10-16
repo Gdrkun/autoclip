@@ -15,6 +15,7 @@ import { titlePresets, isArtworkStyle } from './titlePresets'
 import DraftSettingsPanel, { type FramingState } from './DraftSettingsPanel'
 import SpeakerSubtitles from './SpeakerSubtitles'
 import SpeakerCaptionPreview from './SpeakerCaptionPreview'
+import CaptionMaskPreview from './CaptionMaskPreview'
 import { draftExportState } from './draftExportState'
 import './studio.css'
 
@@ -37,6 +38,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [sourceDuration, setSourceDuration] = useState<number>()
   const [sourceSize, setSourceSize] = useState({ width: 1920, height: 1080 })
   const [showVariant, setShowVariant] = useState(false)
+  const [staleCached, setStaleCached] = useState<Draft | null>(null)
+  const [recoveringCache, setRecoveringCache] = useState(false)
   const [showExport, setShowExport] = useState(false)
   const [showRendered, setShowRendered] = useState(false)
   const [playbackError, setPlaybackError] = useState(false)
@@ -139,9 +142,15 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     if (!server) return
     setSaved(JSON.stringify(server))
     try {
-      const cached = JSON.parse(localStorage.getItem(localKey) || 'null') as Draft | null
+      const cached = JSON.parse(localStorage.getItem(localKey) || localStorage.getItem(`${localKey}.before-caption-recovery`) || 'null') as Draft | null
       if (cached && cached.revision === server.revision && cached.id === server.id && !draftError(cached)) {
         setDraft(cached); setNotice("已恢复本机暂存的修改，请保存后导出"); return
+      }
+      if (cached && cached.id === server.id && cached.revision < server.revision && !draftError(cached)) {
+        // A server-side repair increments the revision. Preserve unsaved edits before
+        // the normal clean-draft effect removes the old current-cache entry.
+        localStorage.setItem(`${localKey}.before-caption-recovery`, JSON.stringify(cached))
+        setStaleCached(cached)
       }
     } catch { /* A damaged local cache must never hide the server draft. */ }
     setDraft(server)
@@ -191,6 +200,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     <button className="ac-back" onClick={() => navigate(`/project/${projectId}`)}>{t("‹ 返回项目")}</button>
     <header className="studio-row studio-editor-head"><div><h1 className="ac-title">{draft.title}</h1><span className="studio-muted">{dirty ? t("有修改未保存 · 本机暂存") : t("草稿已保存")} · V{draft.revision} · {fmtDuration(draftDuration(draft))}</span></div><div className="studio-actions"><Btn disabled={!!busy} onClick={() => setShowVariant(true)}>{t("另存为新版本")}</Btn><Btn disabled={!!busy || !dirty} loading={busy==='save'} onClick={() => perform('save', async () => {await save()})}>{t("保存草稿")}</Btn><Btn variant="cta" disabled={!!busy} onClick={() => setShowExport(true)}>{t("导出成片")}</Btn></div></header>
     {loadError && <p className="studio-error">{t("任务状态暂时无法更新：")}{t(loadError)}</p>}
+    {staleCached && <p className="studio-muted" role="status">{t('草稿版本已更新，之前的本机暂存已保留。')}{' '}
+      <Btn size="sm" variant="text" onClick={() => { setRecoveringCache(true); setShowVariant(true) }}>{t('恢复暂存为新版本')}</Btn></p>}
     {!showRendered && (sourcePreview.status !== 'completed' || playbackError) && <details open={playbackError || ['queued', 'running', 'failed'].includes(sourcePreview.status)} className="studio-muted">
       <summary>{t('生成兼容预览')}</summary>
       <p>{t('原片无法播放时，可生成兼容预览；原片不变，不调用模型。')}</p>
@@ -201,6 +212,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       <div className="studio-editor-grid"><section className="studio-editor-main"><div className="studio-editor-sticky"><div className={`studio-stage studio-stage--${draft.aspect}`}>
         <div className="studio-video-frame" style={{aspectRatio: draft.aspect==='portrait'?'9/16':draft.aspect==='landscape'?'16/9':undefined}}>
           <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = scene.start } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
+          {!showRendered && draft.caption_mask && (draft.subtitles || !draft.speaker_subtitles) && <CaptionMaskPreview video={video} band={draft.caption_mask} sourceSize={sourceSize}
+            fit={draft.layout === 'crop' && frameModeAt(scene, currentTime) !== 'fit' ? 'cover' : 'contain'} position={cropAt(scene, currentTime, draft.crop_x ?? .5)} />}
           {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000}/>
             : activeCue && <div className={`studio-caption-overlay studio-caption studio-caption--${draft.subtitle_style || 'clean'}`}>{activeCue.text}</div>)}
           {!showRendered && selected===0 && draft.hook && !artworkStyle && <div className={`studio-hook studio-hook--${draft.title_style || 'plain'}`}>{draft.hook}</div>}
@@ -210,10 +223,14 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
           onToggle={togglePlay} onMute={() => setMuted(m => !m)}
           onSeek={offset => { const v = video.current; if (!v) return; v.currentTime = playBase + offset; setCurrentTime(v.currentTime) }} />
       </div><div className="studio-row studio-preview-foot"><span className="studio-muted">{showRendered?t("实际渲染结果"):t("原片预览 · 成片取 {{range}} · 字幕、翻译以渲染结果为准", { range: scene ? `${fmtDuration(scene.start)}–${fmtDuration(scene.end)}` : "" })}</span>{previewUrl ? <Btn size="sm" onClick={() => setShowRendered(!showRendered)}>{showRendered?t("查看原片"):t("播放成片")}</Btn> : <Btn size="sm" disabled={!!active} onClick={render}>{active?t("正在渲染"):t("渲染预览")}</Btn>}</div></div>
+      {!showRendered && draft.subtitles && draft.speaker_subtitles && workspace.generation?.source_has_burned_subtitles && !draft.caption_mask &&
+        <p className="studio-muted" role="status">{t('原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。')}</p>}
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
       {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
       <SpeakerSubtitles projectId={projectId} draftId={draftId} document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
-        onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })} onEnabled={value => patch({ speaker_colors: value })}
+        onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })}
+        onApply={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source', subtitles: true, subtitles_auto_suppressed: false,
+          caption_mask: draft.caption_mask || (workspace.generation?.source_has_burned_subtitles ? workspace.generation.burned_caption_band : null) })} onEnabled={value => patch({ speaker_colors: value })}
         onSeek={seconds => { const v = video.current; if (v) { v.currentTime = seconds; setCurrentTime(seconds) } }}/>
       <details className="studio-details studio-source-details"><summary>{t("调整镜头")}{' '}<span className="ac-mono">{draft.scenes.length}</span>{' '}{t("· 顺序与起止点")}</summary>
         <Btn size="sm" disabled={draft.scenes.length >= 30} onClick={() => setPicker('append')}>{t("追加镜头")}</Btn>
@@ -236,8 +253,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         setPicker(null); setNotice("镜头已更新，请保存后重新渲染。换镜头后请核对开头文案是否仍符合画面。")
       } catch(e) { setPicker(null); setError(t(errorText(e))) }
     }} />}
-    <DraftVariantDialog open={showVariant} projectId={projectId} draft={draft} onClose={() => setShowVariant(false)} onCreated={created => {
-      try { localStorage.removeItem(localKey) } catch { /* The new server draft is already durable. */ }
+    <DraftVariantDialog open={showVariant} projectId={projectId} draft={recoveringCache && staleCached ? staleCached : draft} onClose={() => { setShowVariant(false); setRecoveringCache(false) }} onCreated={created => {
+      try { localStorage.removeItem(recoveringCache ? `${localKey}.before-caption-recovery` : localKey) } catch { /* The new server draft is already durable. */ }
       navigate(`/project/${projectId}/studio/${created.id}`)
     }} />
     <Dialog open={!!suggestion} onClose={()=>setSuggestion(null)} title={t("查看文案修改")} description={t("确认后应用到当前草稿，镜头与声音保持原设置。")} footer={<div className="studio-actions"><Btn onClick={()=>setSuggestion(null)}>{t("保留原稿")}</Btn><Btn variant="cta" onClick={()=>{setUndo(draft);setDraft(suggestion);setSuggestion(null);setShowRendered(false)}}>{t("应用修改")}</Btn></div>}><p>{suggestion?.title}</p><p>{suggestion?.hook || t("无开头文字")}</p></Dialog>

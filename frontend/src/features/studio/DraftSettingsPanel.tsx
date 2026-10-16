@@ -56,7 +56,7 @@ export default function DraftSettingsPanel({ draft, patch, scene, currentTime, o
       </Row>
 
       {!draft.packaging && <Row label={t("字幕")} hint={t("把字幕压进画面，整条成片统一样式。")}>
-        <Switch size="small" checked={draft.subtitles} onChange={value => patch({ subtitles: value })} />
+        <Switch size="small" checked={draft.subtitles} onChange={value => patch({ subtitles: value, subtitles_auto_suppressed: false })} />
       </Row>}
       {!draft.packaging && draft.subtitles && <Row stack label={t("字幕样式")}>
         <div className="studio-tiles" role="radiogroup" aria-label={t("字幕样式")}>

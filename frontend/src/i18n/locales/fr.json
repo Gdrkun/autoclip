@@ -1806,5 +1806,8 @@
   "目录无法写入，请检查路径和权限": "Impossible d’écrire dans ce dossier. Vérifiez le chemin et les autorisations.",
   "读取临时目录失败": "Impossible de charger les paramètres du dossier temporaire",
   "保存临时目录失败": "Impossible d’enregistrer les paramètres du dossier temporaire",
-  "恢复默认": "Rétablir la valeur par défaut"
+  "恢复默认": "Rétablir la valeur par défaut",
+  "原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。": "La vidéo contient déjà des sous-titres, mais leur emplacement est inconnu. Ils peuvent chevaucher les sous-titres des intervenants.",
+  "草稿版本已更新，之前的本机暂存已保留。": "La version du brouillon a changé. Vos modifications locales précédentes ont été conservées.",
+  "恢复暂存为新版本": "Restaurer les modifications dans une nouvelle version"
 }

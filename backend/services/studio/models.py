@@ -165,6 +165,8 @@ class Draft(BaseModel):
     title_y: float = Field(default=.12, ge=.06, le=.70, allow_inf_nan=False)
     title_accent: str | None = Field(default=None, pattern=r'^#[0-9a-fA-F]{6}$')
     subtitles: bool = True
+    # Only the duplicate-caption heuristic sets this; manual OFF clears it.
+    subtitles_auto_suppressed: bool = Field(default=False, exclude_if=lambda value: not value)
     speaker_subtitles: SpeakerDocument | None = Field(default=None, exclude_if=lambda value: value is None)
     speaker_subtitle_layout: SpeakerCaptionLayout | None = Field(default=None, exclude_if=lambda value: value is None)
     speaker_colors: bool = Field(default=True, exclude_if=lambda value: value)

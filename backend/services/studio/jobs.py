@@ -36,6 +36,8 @@ def source(project_id):
 def export(project_id, draft, *, brand_outro=False, _variant_identity=None, html_template=None, html_fallback=None, safe_area='xiaohongshu', requested_template=None):
     from backend.services.speaker_integration import hydrate
     draft = hydrate(project_id, draft)
+    from backend.services.studio.speaker_captions import reconcile
+    draft = Draft.model_validate(reconcile(draft.model_dump(), store.read(project_id).get('generation') or {}))
     from backend.services.output_branding import load_settings
     brand_outro = bool(brand_outro and load_settings().enabled)
     from backend.services.studio.template_choice import recorded_style
@@ -534,8 +536,9 @@ def _apply_strategy(draft, strategy_id, *, burned_subtitles=False, layout=None):
         # No template packaging here: the legacy captions and hook are translated at render time
         # (skipped when already in this language), so English YouTube never burns Chinese text.
         value['language'] = strategy.audience_language
-    if burned_subtitles:
-        value['subtitles'] = False
+    from backend.services.studio.speaker_captions import has_captions
+    if burned_subtitles and not has_captions(value) and value.get('subtitles', True):
+        value.update(subtitles=False, subtitles_auto_suppressed=True)
     # The template version follows the new title style: a draft derived for one platform (comic, v6)
     # must not carry a version the next platform's style rejects (card only supports v1).
     version = value.get('title_template_version', 1)
@@ -1030,6 +1033,12 @@ def _apply_packaging(project_id, value, strategy_id, burned, cache):
     reuses it. Only the subtitle rows this draft uses are sent.
     """
     strategy = _project_strategy(project_id, strategy_id)
+    from backend.services.studio.speaker_captions import attach_document, has_captions, reconcile
+    value = attach_document(project_id, value)
+    if has_captions(value):
+        # Recognition and corrections already exist; do not replace them with template captions.
+        value = reconcile(value, store.read(project_id).get('generation') or {})
+        return {key: item for key, item in value.items() if key != 'packaging'}
     mask = _caption_mask(project_id, strategy_id) if burned else None
     value = {**{key: item for key, item in value.items() if key != 'caption_mask'}, **({'caption_mask': mask} if mask else {})}
     if mask:

@@ -1,0 +1,30 @@
+const {test}=require('node:test'),assert=require('node:assert/strict')
+const fs=require('node:fs'),path=require('node:path'),Module=require('node:module'),ts=require('typescript')
+const root=path.resolve(__dirname,'../src/features/studio')
+const file=path.join(root,'captionMaskGeometry.ts'),m=new Module(file,module)
+m._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText,file)
+const {captionMaskRect}=m.exports
+
+test('source caption mask follows letterboxed and cropped picture coordinates',()=>{
+  const contain=captionMaskRect([.8,.95],{width:1920,height:1080},{width:360,height:640},'contain')
+  assert.equal(contain.left,0);assert.equal(contain.width,360)
+  assert.equal(contain.top,(640-202.5)/2+202.5*.8)
+  assert.ok(Math.abs(contain.height-202.5*.15)<1e-8)
+  const cover=captionMaskRect([.8,.95],{width:1920,height:1080},{width:360,height:640},'cover',.2)
+  assert.equal(cover.left,0);assert.equal(cover.width,360);assert.equal(cover.top,512)
+})
+test('invalid or fully cropped source bands do not blur unrelated picture regions',()=>{
+  for(const band of [[.9,.2],[-1,.2],[.1,NaN],[.1,1.1]]) assert.equal(captionMaskRect(band,{width:1920,height:1080},{width:360,height:640},'contain'),null)
+  assert.equal(captionMaskRect([.8,.95],{width:100,height:1000},{width:500,height:100},'cover'),null)
+})
+test('applying recognition enables captions, while ordinary edits and manual OFF stay separate',()=>{
+  const editor=fs.readFileSync(path.join(root,'StudioEditor.tsx'),'utf8')
+  const speaker=fs.readFileSync(path.join(root,'SpeakerSubtitles.tsx'),'utf8')
+  const settings=fs.readFileSync(path.join(root,'DraftSettingsPanel.tsx'),'utf8')
+  assert.match(editor,/onApply=\{value => patch\(\{[^\n]*subtitles: true, subtitles_auto_suppressed: false/)
+  assert.match(speaker,/apply.current = onApply/)
+  assert.match(speaker,/onClick=\{\(\) => onApply\(recognized\)\}/)
+  assert.match(settings,/subtitles: value, subtitles_auto_suppressed: false/)
+  assert.ok(editor.indexOf('<CaptionMaskPreview')<editor.indexOf('<SpeakerCaptionPreview'))
+  assert.match(editor,/!showRendered && draft.caption_mask && \(draft.subtitles \|\| !draft.speaker_subtitles\)/)
+})

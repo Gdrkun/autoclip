@@ -111,6 +111,13 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
         raise ValueError('无法读取原视频尺寸')
     w, h = int(w) // 2 * 2, int(h) // 2 * 2
     warnings = []
+    from backend.services.studio.speaker_captions import reconcile, UNLOCATED_WARNING
+    from backend.services.studio import store
+    if draft.speaker_subtitles:
+        generation = store.read(project_id).get('generation') or {}
+        draft = Draft.model_validate(reconcile(draft.model_dump(), generation))
+        if draft.subtitles and generation.get('source_has_burned_subtitles') and not draft.caption_mask:
+            warnings.append(UNLOCATED_WARNING)
     speaker_mode = bool(draft.subtitles and draft.speaker_subtitles)
     if speaker_mode and not _speaker_language_matches(draft):
         raise ValueError('说话人字幕暂时只支持原语言')
@@ -272,7 +279,7 @@ def render_draft(project_id, video, draft: Draft, job_id, progress, *, brand_out
                             cmd += ['-map', '[audioout]', '-c:a', 'pcm_s16le', '-ar', '48000', '-ac', '2']
                         else:
                             cmd += ['-an']
-                        if draft.caption_mask:
+                        if draft.caption_mask and (draft.subtitles or not draft.speaker_subtitles):
                             graph, masked_map = _mask_captions(graph, draft.caption_mask)
                             if masked_map:
                                 cmd[cmd.index('0:v:0') - 1:cmd.index('0:v:0') + 1] = ['-map', masked_map]
