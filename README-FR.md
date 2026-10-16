@@ -25,6 +25,14 @@ L’app est gratuite ; les modèles cloud sont facturés à l’usage. Ajustez d
 
 </div>
 
+## Fonctionnalités de ce fork
+
+[Gdrkun/autoclip](https://github.com/Gdrkun/autoclip/tree/feature/speaker-subtitles), branche `feature/speaker-subtitles`, enrichit [AutoClip d’origine](https://github.com/zhouxiaoka/autoclip) avec des sous-titres par locuteur sur CPU, des couleurs et contours modifiables, des préférences de sélection, des connaissances sur les personnages issues de clips de référence et validées manuellement, l’import FLV, la reprise et un dossier temporaire configurable. L’attribution et la licence MIT sont conservées.
+
+[Guide des fonctions et d’utilisation (chinois)](docs/FORK_GUIDE.md) · [Historique de développement (chinois)](docs/change-history.md) · [Signalements du fork](https://github.com/Gdrkun/autoclip/issues). Le site, les téléchargements, les exemples et les versions ci-dessous appartiennent au projet d’origine ; ses paquets n’incluent pas ces ajouts. Utilisez cette branche source ; la validation de paquets de bureau propres au fork reste à faire.
+
+---
+
 **[La dernière version](https://github.com/zhouxiaoka/autoclip/releases/latest)** est celle qu’affiche `autoclip --version`, pour bureau, CLI et MCP. Le [journal des changements](CHANGELOG.md) couvre production automatique, pagination des sous-titres, cadrage et file des vidéos longues. Mettez les anciennes versions à jour.
 
 ## Vrais clips

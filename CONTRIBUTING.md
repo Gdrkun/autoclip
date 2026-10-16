@@ -2,6 +2,12 @@
 
 AutoClip 接受故障修复、文档与翻译改进，以及已经确认范围的功能贡献。首次参与可先看 [README](README.md)、[仓库目录说明](docs/REPOSITORY_LAYOUT.md) 和 [当前状态](HANDOFF.md)。个人业余维护，回复时间不固定。
 
+## 个人 fork 的贡献约定
+
+本仓库的 `feature/speaker-subtitles` 增强功能和使用范围见 [分支指南](docs/FORK_GUIDE.md)，相关问题提交到 [Gdrkun/autoclip Issues](https://github.com/Gdrkun/autoclip/issues)。以下保留上游贡献指南；增强功能尚未合入上游时，请先在个人 fork 复现和讨论。
+
+本 fork 按功能模块提交，使用 `feat` / `fix` / `docs` / `test` 等英文类型前缀，标题与正文使用中文，说明问题、行为变化和实际验证。向上游贡献时遵循其规范，PR 标题与说明优先英文。不得将个人配置、密钥、模型、测试原始报告或用户媒体加入提交；验证继续遵守 [测试验收工作流](docs/TESTING_ACCEPTANCE.md)。
+
 ## 先选择反馈入口
 
 - 可复现故障：[Bug 报告](https://github.com/zhouxiaoka/autoclip/issues/new/choose)。提供实际版本或源码提交、平台、相关模型、复现步骤、预期与实际结果，以及脱敏日志。

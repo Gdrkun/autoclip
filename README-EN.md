@@ -25,6 +25,14 @@ The app is free; cloud models charge by usage. Open the editor whenever you want
 
 </div>
 
+## This fork: character clips and speaker subtitles
+
+[Gdrkun/autoclip](https://github.com/Gdrkun/autoclip/tree/feature/speaker-subtitles), branch `feature/speaker-subtitles`, extends [upstream AutoClip](https://github.com/zhouxiaoka/autoclip) with local CPU speaker subtitles, editable colors and outlines, clipping preferences, reviewed character knowledge learned from reference clips, FLV import, resumable processing, and a configurable temporary directory. The upstream attribution and MIT license are preserved.
+
+See the [fork feature and usage guide (Chinese)](docs/FORK_GUIDE.md), [development history (Chinese)](docs/change-history.md), and [fork issues](https://github.com/Gdrkun/autoclip/issues). The website, downloads, demos, and release notes below belong to upstream; its packages do not include these additions. Use this source branch; independent desktop package acceptance is pending.
+
+---
+
 **[The latest release](https://github.com/zhouxiaoka/autoclip/releases/latest)** is what `autoclip --version` reports, with desktop, CLI, and MCP updated together. See the [changelog](CHANGELOG.md) for quick output, caption pagination, speaker framing, and long-video queue fixes. Please upgrade older installations.
 
 ## Real clips

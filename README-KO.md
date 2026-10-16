@@ -25,6 +25,14 @@
 
 </div>
 
+## 이 포크의 추가 기능
+
+[Gdrkun/autoclip](https://github.com/Gdrkun/autoclip/tree/feature/speaker-subtitles)의 `feature/speaker-subtitles` 브랜치는 [원본 AutoClip](https://github.com/zhouxiaoka/autoclip)에 CPU 화자 자막, 색상·외곽선 편집, 클립 선택 취향, 참고 영상에서 쌓는 검토된 인물 지식, FLV 가져오기, 처리 재개, 임시 폴더 설정을 추가합니다. 원작자 표기와 MIT 라이선스를 유지합니다.
+
+[기능 및 사용 안내(중국어)](docs/FORK_GUIDE.md) · [개발 기록(중국어)](docs/change-history.md) · [포크 이슈](https://github.com/Gdrkun/autoclip/issues). 아래 웹사이트, 다운로드, 사례 및 릴리스 정보는 원본 프로젝트의 것입니다. 원본 설치 패키지에는 추가 기능이 없으므로 이 소스 브랜치를 사용하세요. 별도 데스크톱 패키지 인수 검증은 완료되지 않았습니다.
+
+---
+
 **[최신 정식 릴리스](https://github.com/zhouxiaoka/autoclip/releases/latest)**. 버전은 `autoclip --version`이 보여 주는 값입니다. 데스크톱·CLI·MCP를 함께 업데이트했습니다. 자동 제작, 자막 페이지 분할, 인물 구도, 긴 영상 대기열 수정은 [변경 기록](CHANGELOG.md)을 확인하고 이전 버전에서 업그레이드하세요.
 
 ## 실제 완성 클립

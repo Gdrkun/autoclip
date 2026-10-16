@@ -25,6 +25,14 @@
 
 </div>
 
+## このフォークの追加機能
+
+[Gdrkun/autoclip](https://github.com/Gdrkun/autoclip/tree/feature/speaker-subtitles) の `feature/speaker-subtitles` は、[上流 AutoClip](https://github.com/zhouxiaoka/autoclip) に CPU 話者字幕、色・縁取りの編集、切り抜きの好み、参考動画から蓄積する確認済み人物知識、FLV 対応、処理再開、一時保存先の設定を追加します。原作者の表記と MIT ライセンスを維持しています。
+
+[機能・利用ガイド（中国語）](docs/FORK_GUIDE.md) · [開発履歴（中国語）](docs/change-history.md) · [フォークへの報告](https://github.com/Gdrkun/autoclip/issues)。以下の公式サイト・ダウンロード・事例・リリース情報は上流のものです。上流パッケージに追加機能は含まれないため、このソースブランチを使用してください。独立したデスクトップパッケージの受入検証は未完了です。
+
+---
+
 **[最新リリース](https://github.com/zhouxiaoka/autoclip/releases/latest)**。バージョンは `autoclip --version` の表示です。デスクトップ・CLI・MCP を同時更新。自動制作、字幕のページ分割、人物構図、長尺キューの修正は [変更履歴](CHANGELOG.md) を参照し、旧版から更新してください。
 
 ## 実際の完成クリップ

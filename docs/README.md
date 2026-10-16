@@ -2,6 +2,17 @@
 
 [项目首页与八语 README](../README.md) · [English README](../README-EN.md)
 
+## 本 fork 的人物切片增强
+
+当前新增功能位于个人 fork 的 `feature/speaker-subtitles` 源码分支；下方上游下载和发布说明不包含这些增强。
+
+- [本分支功能、准备、使用与限制](FORK_GUIDE.md)
+- [本地说话人字幕、样式及切片隔离](SPEAKER_SUBTITLES_INTEGRATION.md)
+- [AI 选片偏好与公开人物背景](SELECTION_PREFERENCES.md)
+- [人物知识库、参考切片学习、字幕词库与反馈](CREATOR_KNOWLEDGE.md)
+- [临时工作目录](TEMPORARY_STORAGE.md)
+- [开发变更记录](change-history.md) · [个人 fork 反馈](https://github.com/Gdrkun/autoclip/issues)
+
 ## 研究
 
 - [研究笔记 #1：选对瞬间，而不是堆特效](research/2026-10-what-drives-views/article-zh.md) · [English](research/2026-10-what-drives-views/article-en.md) · [Sources](research/2026-10-what-drives-views/sources.md)

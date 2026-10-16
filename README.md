@@ -25,6 +25,21 @@
 
 </div>
 
+## 本 fork：人物切片与说话人字幕增强
+
+这是 [Gdrkun/autoclip](https://github.com/Gdrkun/autoclip/tree/feature/speaker-subtitles) 的 `feature/speaker-subtitles` 开发分支，基于 [上游 AutoClip](https://github.com/zhouxiaoka/autoclip)，保留 MIT 许可证与原作者说明。
+
+- **人物字幕**：本地 CPU 说话人识别、双色字幕、逐句纠错，以及字号、位置、描边和重叠双行。
+- **更贴合偏好的选片**：唱歌、搞笑、玩梗等制作要求，人物背景、字幕词库和选片反馈记忆。
+- **人物知识积累**：从认可的 B站切片提炼带来源、原话和时间的知识，人工确认后用于后续选片。
+- **本地使用改进**：FLV 导入、长视频分段与恢复、自定义临时工作目录。
+
+**[本分支功能与使用指南](docs/FORK_GUIDE.md)** · [人物知识库](docs/CREATOR_KNOWLEDGE.md) · [开发变更记录](docs/change-history.md) · [本分支反馈](https://github.com/Gdrkun/autoclip/issues)
+
+新增功能请使用本分支源码；下方官网、下载、案例与正式版说明属于上游，上游安装包不包含本分支增强。本分支尚未完成独立安装包验收。
+
+---
+
 **[最新正式版](https://github.com/zhouxiaoka/autoclip/releases/latest)**，桌面、CLI 与 MCP 同步更新。版本以 `autoclip --version` 和 MCP `get_version` 为准。一键出片、字幕分页、人物取景与长视频队列修复见 [更新日志](CHANGELOG.md)。旧版用户请升级。
 
 ## 真实成片
