@@ -1,0 +1,11 @@
+.reaction-options{padding:14px 0;border-top:1px solid var(--line);color:var(--ink)}
+.reaction-options label{display:flex;align-items:center;gap:10px;font-size:13px;flex-wrap:wrap}
+.reaction-options p,.reaction-evidence>p{font-size:12px;line-height:1.7;color:var(--sub);margin:7px 0}
+.reaction-options select{width:auto;max-width:100%}
+.reaction-event{border-top:1px solid var(--line);padding:16px 0;min-width:0}
+.reaction-event header{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px}
+.reaction-event p{font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.reaction-event--ignored{opacity:.65}
+.reaction-frames{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+.reaction-frames img{width:100%;aspect-ratio:16/9;object-fit:contain;background:var(--thumb);border-radius:6px}
+@media(max-width:480px){.reaction-frames{grid-template-columns:1fr}.reaction-event header{display:block}}

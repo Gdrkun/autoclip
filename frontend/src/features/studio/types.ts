@@ -147,6 +147,7 @@ export function portraitDesign(draft: Draft): Draft {
 export interface ImportOptions {
   goal: 'auto' | Goal; language: Language; aspect: Draft['aspect'] | null
   duration: number | null; instruction: string; background_query?: string; detect_singing?: boolean
+  visual_reactions?: boolean; reaction_budget?: number
   portrait_style?: 'auto' | 'interview' | 'podcast'
   html_template?: 'editorial' | 'street' | 'classic'
 }
