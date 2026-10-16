@@ -16,6 +16,7 @@ import DraftSettingsPanel, { type FramingState } from './DraftSettingsPanel'
 import SpeakerSubtitles from './SpeakerSubtitles'
 import SpeakerCaptionPreview from './SpeakerCaptionPreview'
 import CaptionMaskPreview from './CaptionMaskPreview'
+import KnowledgeContext from './KnowledgeContext'
 import { draftExportState } from './draftExportState'
 import './studio.css'
 
@@ -231,6 +232,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         <p className="studio-muted" role="status">{t('原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。')}</p>}
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
       {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
+      <KnowledgeContext projectId={projectId}/>
       <SpeakerSubtitles key={`${projectId}:${draftId}`} projectId={projectId} draftId={draftId} scenes={draft.scenes} selectedScene={selected}
         autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
         document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
