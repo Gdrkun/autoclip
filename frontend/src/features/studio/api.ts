@@ -83,5 +83,8 @@ export const studioApi = {
 }
 export function errorText(error: unknown) {
   const detail = (error as any)?.response?.data?.detail
+  if (Array.isArray(detail) && detail.some(item => item?.loc?.[1] === 'speaker_subtitles' && item?.msg === 'Value error, Subtitle needs text and start_ms < end_ms')) {
+    return '字幕文字不能为空，结束时间必须晚于开始时间。'
+  }
   return typeof detail === 'string' ? detail : (error as Error)?.message || '请求失败，请重试'
 }

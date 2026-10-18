@@ -52,6 +52,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [muted, setMuted] = useState(false)
   const [renderedDuration, setRenderedDuration] = useState(0)
   const [framing, setFraming] = useState<FramingState>({ busy: false })
+  const [timingPending, setTimingPending] = useState(false)
+  const timingPendingRef = useRef(false)
   useEffect(() => {
     const controller = new AbortController()
     studioApi.subtitles(projectId, controller.signal).then(v => setCues(v.cues)).catch(() => setCues([]))
@@ -161,10 +163,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   useEffect(() => {
     if (!draft) return
     try { if (dirty) localStorage.setItem(localKey, JSON.stringify(draft)); else localStorage.removeItem(localKey) } catch { setNotice("本机暂存不可用，请及时保存草稿") }
-    const warn = (e: BeforeUnloadEvent) => { if (dirty) { e.preventDefault(); e.returnValue = '' } }
+    const warn = (e: BeforeUnloadEvent) => { if (dirty || timingPending) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
-  }, [draft, dirty])
+  }, [draft, dirty, timingPending])
   useEffect(() => {
     if (video.current && scene && !showRendered && video.current.readyState >= 1) {
       video.current.currentTime = speakerSeek.current ?? scene.start
@@ -175,6 +177,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const patch = (changes: Partial<Draft>) => { if (draft) { setDraft({...draft, ...changes}); setShowRendered(false); setError('') } }
   const save = async (): Promise<Draft> => {
     if (!draft) throw new Error(t("草稿不存在"))
+    if (timingPendingRef.current) throw new Error(t('请先修正或取消尚未应用的字幕时间。'))
     const invalid = draftError(draft, sourceDuration)
     if (invalid) throw new Error(t(invalid))
     if (!dirty) return draft
@@ -204,7 +207,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const updateScene = (i: number, update: Partial<Scene>) => patch({ scenes: draft.scenes.map((s, index) => index === i ? {...s,...update} : s) })
   return <div className="ac-page studio-editor-page">
     <button className="ac-back" onClick={() => navigate(`/project/${projectId}`)}>{t("‹ 返回项目")}</button>
-    <header className="studio-row studio-editor-head"><div><h1 className="ac-title">{draft.title}</h1><span className="studio-muted">{dirty ? t("有修改未保存 · 本机暂存") : t("草稿已保存")} · V{draft.revision} · {fmtDuration(draftDuration(draft))}</span></div><div className="studio-actions"><Btn disabled={!!busy} onClick={() => setShowVariant(true)}>{t("另存为新版本")}</Btn><Btn disabled={!!busy || !dirty} loading={busy==='save'} onClick={() => perform('save', async () => {await save()})}>{t("保存草稿")}</Btn><Btn variant="cta" disabled={!!busy} onClick={() => setShowExport(true)}>{t("导出成片")}</Btn></div></header>
+    <header className="studio-row studio-editor-head"><div><h1 className="ac-title">{draft.title}</h1><span className="studio-muted">{timingPending ? t('请先修正或取消尚未应用的字幕时间。') : dirty ? t("有修改未保存 · 本机暂存") : t("草稿已保存")} · V{draft.revision} · {fmtDuration(draftDuration(draft))}</span></div><div className="studio-actions"><Btn disabled={!!busy} onClick={() => {
+      if (timingPendingRef.current) { setError(t('请先修正或取消尚未应用的字幕时间。')); return }
+      setShowVariant(true)
+    }}>{t("另存为新版本")}</Btn><Btn disabled={!!busy || (!dirty && !timingPending)} loading={busy==='save'} onClick={() => perform('save', async () => {await save()})}>{t("保存草稿")}</Btn><Btn variant="cta" disabled={!!busy} onClick={() => setShowExport(true)}>{t("导出成片")}</Btn></div></header>
     {loadError && <p className="studio-error">{t("任务状态暂时无法更新：")}{t(loadError)}</p>}
     {staleCached && <p className="studio-muted" role="status">{t('草稿版本已更新，之前的本机暂存已保留。')}{' '}
       <Btn size="sm" variant="text" onClick={() => { setRecoveringCache(true); setShowVariant(true) }}>{t('恢复暂存为新版本')}</Btn></p>}
@@ -244,6 +250,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
         document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
         onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })}
+        onTimingPendingChange={pending => { timingPendingRef.current = pending; setTimingPending(pending) }}
         onApply={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source', subtitles: true, subtitles_auto_suppressed: false,
           caption_mask: draft.caption_mask || (workspace.generation?.source_has_burned_subtitles ? workspace.generation.burned_caption_band : null) })} onEnabled={value => patch({ speaker_colors: value })}
         onSeek={(seconds, sceneIndex = selected) => {

@@ -1,8 +1,11 @@
 import type { Scene, SpeakerCaptionLayout, SpeakerCue, SpeakerDocument } from './types'
 
 type ScopeScene = Pick<Scene, 'start' | 'end'>
-export function speakerCuesForScenes(cues: SpeakerCue[], scenes?: ScopeScene[]) {
-  return scenes ? cues.filter(cue => scenes.some(scene => cue.start_ms < scene.end * 1000 && cue.end_ms > scene.start * 1000)) : cues
+export function speakerCuesForScenes(cues: SpeakerCue[], scenes?: ScopeScene[], retainedIds: string[] = []) {
+  // Keep a cue in its scene while the user replaces an end time. An incomplete
+  // value can temporarily precede its start and must remain available to repair.
+  return scenes ? cues.filter(cue => retainedIds.includes(cue.id) || scenes.some(scene => cue.start_ms < scene.end * 1000 &&
+    (cue.end_ms > scene.start * 1000 || (cue.end_ms <= cue.start_ms && cue.start_ms >= scene.start * 1000)))) : cues
 }
 
 function replaceScopedOrder(cues: SpeakerCue[], scoped: SpeakerCue[], ordered: SpeakerCue[]) {
@@ -11,13 +14,13 @@ function replaceScopedOrder(cues: SpeakerCue[], scoped: SpeakerCue[], ordered: S
   return cues.map(cue => ids.has(cue.id) ? ordered[index++] : cue)
 }
 
-export function sortSpeakerCuesInScenes(cues: SpeakerCue[], scenes?: ScopeScene[]) {
-  const scoped = speakerCuesForScenes(cues, scenes)
+export function sortSpeakerCuesInScenes(cues: SpeakerCue[], scenes?: ScopeScene[], retainedIds: string[] = []) {
+  const scoped = speakerCuesForScenes(cues, scenes, retainedIds)
   return replaceScopedOrder(cues, scoped, sortSpeakerCues(scoped))
 }
 
-export function moveSpeakerCueInScenes(cues: SpeakerCue[], scenes: ScopeScene[] | undefined, id: string, delta: number) {
-  const scoped = speakerCuesForScenes(cues, scenes)
+export function moveSpeakerCueInScenes(cues: SpeakerCue[], scenes: ScopeScene[] | undefined, id: string, delta: number, retainedIds: string[] = []) {
+  const scoped = speakerCuesForScenes(cues, scenes, retainedIds)
   const index = scoped.findIndex(cue => cue.id === id)
   return replaceScopedOrder(cues, scoped, moveSpeakerCue(scoped, index, delta))
 }
@@ -41,7 +44,7 @@ export function insertSpeakerCueInScenes(document: SpeakerDocument, scenes: Scop
   const scoped = speakerCuesForScenes(document.subtitles, [scene])
   const next = sortSpeakerCues(scoped).find(cue => cue.start_ms > start)
   const cue: SpeakerCue = { id, text, start_ms: start, end_ms: Math.min(right, start + 2000, next?.start_ms ?? right),
-    speaker_id: null, layer: 0, assignment_reason: 'manual' }
+    speaker_id: after?.speaker_id ?? null, layer: after?.layer ?? 0, assignment_reason: 'manual' }
   const afterIndex = document.subtitles.findIndex(cue => cue.id === afterId)
   const followingIndex = next ? document.subtitles.findIndex(cue => cue.id === next.id) : -1
   const lastIndex = scoped.length ? document.subtitles.findIndex(cue => cue.id === scoped[scoped.length - 1].id) + 1 : document.subtitles.length
@@ -69,11 +72,27 @@ export function insertSpeakerCue(document: SpeakerDocument, seconds: number, id:
   const start = Math.max(0, Math.min(requested, document.duration_ms - 100))
   let end = Math.min(document.duration_ms, start + 2000)
   if (following && following.start_ms > start) end = Math.min(end, following.start_ms)
-  const cue: SpeakerCue = { id, start_ms: start, end_ms: end, text, speaker_id: null, layer: 0, assignment_reason: 'manual' }
+  const after = document.subtitles[index]
+  const cue: SpeakerCue = { id, start_ms: start, end_ms: end, text, speaker_id: after?.speaker_id ?? null, layer: after?.layer ?? 0, assignment_reason: 'manual' }
   if (index < 0) return sortSpeakerCues([...document.subtitles, cue])
   const cues = [...document.subtitles]
   cues.splice(index + 1, 0, cue)
   return cues
+}
+
+/** Accept source seconds or a clock timestamp, without treating blank input as zero. */
+export function speakerCueTiming(start: string, end: string, durationMs: number) {
+  const parse = (text: string) => {
+    const parts = text.trim().replace(',', '.').split(':')
+    if (parts.length > 3 || !parts.every((part, index) =>
+      (index === parts.length - 1 ? /^\d+(?:\.\d{0,3})?$/ : /^\d+$/).test(part))) return NaN
+    const numbers = parts.map(Number)
+    if (numbers.some((n, index) => index > 0 && n >= 60)) return NaN
+    return Math.round(numbers.reduce((seconds, n) => seconds * 60 + n, 0) * 1000)
+  }
+  const start_ms = parse(start), end_ms = parse(end)
+  return Number.isSafeInteger(start_ms) && Number.isSafeInteger(end_ms) && start_ms >= 0 && end_ms > start_ms && end_ms <= durationMs
+    ? { start_ms, end_ms } : null
 }
 
 function roundPixel(value: number) {

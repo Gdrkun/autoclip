@@ -10,6 +10,20 @@ const jsx=(type,props)=>({type,props})
 function component(document,windows,onChange){const C=load('SpeakerSubtitles.tsx',{react:{useEffect(){},useRef:current=>({current}),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},'../../services/api':{default:{defaults:{baseURL:'/api/v1'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}).default;return C({projectId:'p',draftId:'d',document,scenes:windows,enabled:true,dirty:true,currentTime:2.9,onChange,onApply(){},onLayout(){},onEnabled(){},onSeek(){}})}
 function nodes(n){return !n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(nodes):[n,...nodes(n.props?.children)]}
 
+test('an invalid end time stays editable in its scene and shows a validation warning',()=>{
+ const broken={...doc,subtitles:[cue('outside',0,400),cue('broken',1200,700)]}
+ let changed
+ const tree=nodes(component(broken,[scenes[0]],value=>{changed=value}))
+ assert.ok(tree.some(n=>n.props?.['aria-label']==='终点（秒） broken'),'invalid cue must not disappear while editing its time')
+ assert.ok(tree.some(n=>n.props?.role==='alert'))
+ tree.find(n=>n.props?.['aria-label']==='终点（秒） broken').props.onChange({target:{value:'1.8'}})
+ assert.equal(changed,undefined,'typing is buffered until the complete time range is applied')
+ tree.find(n=>n.props?.className==='speaker-cue-time').props.onBlur({currentTarget:{contains:()=>false},relatedTarget:null})
+ assert.equal(changed.subtitles[1].end_ms,1800)
+ assert.equal(changed.subtitles[0],broken.subtitles[0])
+ assert.equal(nodes(component(changed,[scenes[0]],()=>{})).filter(n=>n.props?.role==='alert').length,0)
+})
+
 test('two clip editors show only intersecting cues from a shared source transcript',()=>{
  const a=nodes(component(doc,[scenes[0]],()=>{})),b=nodes(component(doc,[scenes[1]],()=>{}))
  assert.deepEqual(a.filter(n=>n.type==='textarea').map(n=>n.props.value),['a','edge'])
