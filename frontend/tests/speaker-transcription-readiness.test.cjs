@@ -19,7 +19,7 @@ async function load(status, failed = false) {
   }
   const source = fs.readFileSync(path.join(__dirname, '../src/features/settings/SpeakerTranscription.tsx'), 'utf8')
   vm.runInNewContext(ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText,
-    { exports, require: name => mocks[name] || assert.fail(name) })
+    { AbortController, exports, require: name => mocks[name] || assert.fail(name) })
   const render = provider => nodes(exports.default({ provider, enabled: true, prompt: '', onChange() {} })).find(node => node.props?.role === 'status').props.children
   assert.equal(render('sensevoice_local'), '加载中…')
   effects[0]()

@@ -4,14 +4,14 @@ const flush=()=>new Promise(resolve=>setImmediate(resolve))
 const doc={speakers:[{speaker_id:'spk_0',color:'#FF91BD'}],subtitles:[]}
 function mount(get){
  const hooks=[],pending=[],intervals=new Map(),posts=[],applied=[];let index=0
- const react={useRef(value){const i=index++;return hooks[i]??(hooks[i]={current:value})},useState(value){index++;return [value,()=>{}]},
+ const react={useMemo:fn=>fn(),useRef(value){const i=index++;return hooks[i]??(hooks[i]={current:value})},useState(value){index++;return [value,()=>{}]},
   useEffect(effect,deps){const i=index++,old=hooks[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();hooks[i]={deps};pending.push(()=>{hooks[i].cleanup=effect()})}}}
  const exports={},jsx=(type,props)=>({type,props})
  const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},
-  '../../services/api':{default:{get,post:async url=>{posts.push(url);return {status:'queued'}},defaults:{baseURL:'/api/v1'}}},
+  '../../services/api':{default:{get:(url,...args)=>url==='/studio/speaker-subtitles/status'?Promise.resolve({}):get(url,...args),post:async url=>{posts.push(url);return {status:'queued'}},defaults:{baseURL:'/api/v1'}}},
   './api':{errorText:String},'./speakerSubtitleEditing':{speakerCuesForScenes:cues=>cues},'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio/SpeakerSubtitles.tsx'),'utf8'),{
-  compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:id=>mocks[id]||assert.fail(id),
+  compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{AbortController,exports,require:id=>mocks[id]||assert.fail(id),
   window:{setInterval:fn=>{const id=intervals.size+1;intervals.set(id,fn);return id},clearInterval:id=>intervals.delete(id)}})
  const render=(extra={})=>{index=0;exports.default({projectId:'p',draftId:'a',enabled:true,autoEnabled:true,dirty:false,currentTime:0,
   onApply:value=>applied.push(value),onChange(){},onLayout(){},onEnabled(){},onSeek(){},...extra});pending.splice(0).forEach(fn=>fn())}
@@ -21,6 +21,7 @@ function mount(get){
 test('old editor queues missing voices once, then applies available results automatically',async()=>{
  let state={job:{status:'idle'},document:null};const view=mount(async()=>state)
  view.render();await flush();assert.deepEqual(view.posts,['/studio/p/speaker-subtitles/ensure'])
+ state={job:{status:'queued'},document:null}
  view.tick();await flush();assert.equal(view.posts.length,1)
  state={job:{status:'completed'},document:doc};view.tick();await flush()
  assert.equal(view.applied.length,1);assert.equal(view.applied[0].speakers[0].speaker_id,'spk_0')

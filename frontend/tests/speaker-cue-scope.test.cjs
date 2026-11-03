@@ -1,13 +1,13 @@
 const {test}=require('node:test'),assert=require('node:assert/strict')
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript')
-function load(name,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio',name),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:id=>mocks[id]||assert.fail(id),crypto:{randomUUID:()=> 'added'}});return exports}
+function load(name,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio',name),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{AbortController,exports,require:id=>mocks[id]||assert.fail(id),crypto:{randomUUID:()=> 'added'}});return exports}
 const editing=load('speakerSubtitleEditing.ts')
 const cue=(id,start,end)=>({id,start_ms:start,end_ms:end,text:id,layer:0,speaker_id:'spk_0'})
 const doc={schema_version:1,time_base:'clip',duration_ms:10000,speakers:[{speaker_id:'spk_0',display_name:'A',color:'#ff91bd'}],turns:[],subtitles:[cue('outside',0,400),cue('a',1200,1800),cue('gap',4500,4700),cue('edge',900,1100),cue('b',6100,6800)]}
 const scenes=[{start:1,end:3},{start:6,end:7}]
 const ids=cues=>Array.from(cues,c=>c.id)
 const jsx=(type,props)=>({type,props})
-function component(document,windows,onChange){const C=load('SpeakerSubtitles.tsx',{react:{useEffect(){},useRef:current=>({current}),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},'../../services/api':{default:{defaults:{baseURL:'/api/v1'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}).default;return C({projectId:'p',draftId:'d',document,scenes:windows,enabled:true,dirty:true,currentTime:2.9,onChange,onApply(){},onLayout(){},onEnabled(){},onSeek(){}})}
+function component(document,windows,onChange){const C=load('SpeakerSubtitles.tsx',{react:{useMemo:fn=>fn(),useEffect(){},useRef:current=>({current}),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},'../../services/api':{default:{defaults:{baseURL:'/api/v1'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}).default;return C({projectId:'p',draftId:'d',document,scenes:windows,enabled:true,dirty:true,currentTime:2.9,onChange,onApply(){},onLayout(){},onEnabled(){},onSeek(){}})}
 function nodes(n){return !n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(nodes):[n,...nodes(n.props?.children)]}
 
 test('an invalid end time stays editable in its scene and shows a validation warning',()=>{

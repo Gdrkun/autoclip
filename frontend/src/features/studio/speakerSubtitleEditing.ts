@@ -114,18 +114,57 @@ export function speakerCaptionOutline(layout?: SpeakerCaptionLayout | null) {
   return { enabled, width: enabled ? width : 0, color: layout?.outline_color || '#000000' }
 }
 
+type PreparedRow = { cue: SpeakerCue; slot: number; start: number; end: number }
+const previewRows = new WeakMap<SpeakerDocument, Map<string, PreparedRow[]>>()
+
 export function activeSpeakerRows(document: SpeakerDocument, seconds: number, sceneStart: number, sceneEnd: number) {
-  let active: { end: number; slot: number }[] = []
-  const rows: { cue: SpeakerCue; slot: number }[] = []
-  for (const cue of sortSpeakerCues(document.subtitles)) {
-    const start = Math.max(sceneStart * 1000, cue.start_ms), end = Math.min(sceneEnd * 1000, cue.end_ms)
-    if (end <= start) continue
-    active = active.filter(row => row.end > start)
-    let slot = cue.layer
-    if (active.some(row => row.slot === slot)) slot = 1 - slot
-    if (active.some(row => row.slot === slot)) continue
-    active.push({ end, slot })
-    if (start <= seconds * 1000 && seconds * 1000 < end) rows.push({ cue, slot })
+  let scenes = previewRows.get(document)
+  if (!scenes) { scenes = new Map(); previewRows.set(document, scenes) }
+  const key = `${sceneStart}:${sceneEnd}`
+  let schedule = scenes.get(key)
+  if (!schedule) {
+    let active: { end: number; slot: number }[] = []
+    schedule = []
+    for (const cue of sortSpeakerCues(document.subtitles)) {
+      const start = Math.max(sceneStart * 1000, cue.start_ms), end = Math.min(sceneEnd * 1000, cue.end_ms)
+      if (end <= start) continue
+      active = active.filter(row => row.end > start)
+      let slot = cue.layer
+      if (active.some(row => row.slot === slot)) slot = 1 - slot
+      if (active.some(row => row.slot === slot)) continue
+      active.push({ end, slot }); schedule.push({ cue, slot, start, end })
+    }
+    if (scenes.size >= 30) scenes.delete(scenes.keys().next().value!)
+    scenes.set(key, schedule)
   }
-  return rows
+  const at = seconds * 1000
+  return schedule.filter(row => row.start <= at && at < row.end)
+}
+
+export function shiftSpeakerCues(cues: SpeakerCue[], ids: string[], value: string, durationMs: number): SpeakerCue[] | null {
+  if (!/^[+-]?\d+(?:\.\d{1,3})?$/.test(value.trim())) return null
+  const offset = Math.round(Number(value) * 1000), selected = new Set(ids)
+  if (!Number.isSafeInteger(offset) || !selected.size) return null
+  const result = cues.map(cue => selected.has(cue.id) ? { ...cue, start_ms: cue.start_ms + offset, end_ms: cue.end_ms + offset, assignment_reason: 'manual' as const } : cue)
+  if (result.some(cue => cue.start_ms < 0 || cue.end_ms > durationMs || cue.end_ms <= cue.start_ms)) return null
+  return result
+}
+
+export function replaceSpeakerText(cues: SpeakerCue[], ids: string[], find: string, replacement: string): SpeakerCue[] | null {
+  if (!find) return null
+  const selected = new Set(ids)
+  const pattern = new RegExp(find.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
+  const result = cues.map(cue => selected.has(cue.id)
+    ? { ...cue, text: cue.text.replace(pattern, () => replacement), assignment_reason: 'manual' as const } : cue)
+  return result.some(cue => !cue.text.trim() || cue.text.length > 2000) ? null : result
+}
+
+export function validSpeakerLayout(value: unknown): value is SpeakerCaptionLayout {
+  if (!value || typeof value !== 'object') return false
+  const row = value as Record<string, unknown>
+  const number = (key: string, lo: number, hi: number) => typeof row[key] === 'number' && Number.isFinite(row[key]) && Number(row[key]) >= lo && Number(row[key]) <= hi
+  return number('font_scale', .5, 2.5) && number('x', .05, .95) && number('y', .15, .95) &&
+    (row.outline_enabled == null || typeof row.outline_enabled === 'boolean') &&
+    (row.outline_width == null || number('outline_width', .5, 8)) &&
+    (row.outline_color == null || typeof row.outline_color === 'string' && /^#[0-9a-fA-F]{6}$/.test(row.outline_color))
 }

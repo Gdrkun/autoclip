@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next'
 import { t } from '../../i18n'
 import StudioDownloadLink from './StudioDownloadLink'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Btn, Dialog, ProgressLine, Row, fmtDuration } from '../../ui'
 import { studioApi, errorText, type SourcePreview } from './api'
@@ -52,6 +52,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [muted, setMuted] = useState(false)
   const [renderedDuration, setRenderedDuration] = useState(0)
   const [framing, setFraming] = useState<FramingState>({ busy: false })
+  const [captionStyleEditing, setCaptionStyleEditing] = useState(false)
+  const auditionRange = useRef<{ start: number; end: number; loop: boolean } | null>(null)
   const [timingPending, setTimingPending] = useState(false)
   const timingPendingRef = useRef(false)
   useEffect(() => {
@@ -129,7 +131,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const video = useRef<HTMLVideoElement>(null)
   const speakerSeek = useRef<number | null>(null)
   const localKey = `autoclip.studio.${projectId}.${draftId}`
-  const dirty = !!draft && JSON.stringify(draft) !== saved
+  const draftJson = useMemo(() => draft ? JSON.stringify(draft) : '', [draft])
+  const dirty = !!draft && draftJson !== saved
   const artworkStyle = isArtworkStyle(draft?.title_style)
   const scene = draft?.scenes[selected] || draft?.scenes[0]
   // The preview transport runs on the clip's own timeline: 0 = scene start (or rendered clip start).
@@ -160,13 +163,19 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     } catch { /* A damaged local cache must never hide the server draft. */ }
     setDraft(server)
   }, [workspace, draftId, draft])
-  useEffect(() => {
+  const cacheDraft = useRef<() => void>(() => undefined)
+  cacheDraft.current = () => {
     if (!draft) return
-    try { if (dirty) localStorage.setItem(localKey, JSON.stringify(draft)); else localStorage.removeItem(localKey) } catch { setNotice("本机暂存不可用，请及时保存草稿") }
-    const warn = (e: BeforeUnloadEvent) => { if (dirty || timingPending) { e.preventDefault(); e.returnValue = '' } }
+    try { if (dirty) localStorage.setItem(localKey, draftJson); else localStorage.removeItem(localKey) }
+    catch { setNotice("本机暂存不可用，请及时保存草稿") }
+  }
+  useEffect(() => {
+    const timer = window.setTimeout(() => cacheDraft.current(), 300)
+    const warn = (e: BeforeUnloadEvent) => { cacheDraft.current(); if (dirty || timingPending) { e.preventDefault(); e.returnValue = '' } }
     window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [draft, dirty, timingPending])
+    return () => { window.clearTimeout(timer); window.removeEventListener('beforeunload', warn) }
+  }, [draftJson, dirty, timingPending])
+  useEffect(() => () => cacheDraft.current(), [])
   useEffect(() => {
     if (video.current && scene && !showRendered && video.current.readyState >= 1) {
       video.current.currentTime = speakerSeek.current ?? scene.start
@@ -189,6 +198,15 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     setBusy(kind); setError('')
     try { await action() } catch (e) { setError(t(errorText(e))) } finally { setBusy('') }
   }
+  const saveAction = useRef<() => void>(() => undefined)
+  saveAction.current = () => { void perform('save', async () => { await save() }) }
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveAction.current() }
+    }
+    window.addEventListener('keydown', shortcut)
+    return () => window.removeEventListener('keydown', shortcut)
+  }, [])
   const render = async () => {
     await perform('render', async () => {
       const savedDraft = await save()
@@ -223,10 +241,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     <fieldset disabled={!!busy} className="studio-fieldset">
       <div className="studio-editor-grid"><section className="studio-editor-main"><div className="studio-editor-sticky"><div className={`studio-stage studio-stage--${draft.aspect}`}>
         <div className="studio-video-frame" style={{aspectRatio: draft.aspect==='portrait'?'9/16':draft.aspect==='landscape'?'16/9':undefined}}>
-          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = speakerSeek.current ?? scene.start; speakerSeek.current = null } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
+          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = speakerSeek.current ?? scene.start; speakerSeek.current = null } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); const audition=auditionRange.current; if(audition && (v.currentTime >= audition.end || v.currentTime < audition.start - .25)) { if(audition.loop) v.currentTime=audition.start; else {v.pause(); auditionRange.current=null} return } if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
           {!showRendered && draft.caption_mask && (draft.subtitles || !draft.speaker_subtitles) && <CaptionMaskPreview video={video} band={draft.caption_mask} sourceSize={sourceSize}
             fit={draft.layout === 'crop' && frameModeAt(scene, currentTime) !== 'fit' ? 'cover' : 'contain'} position={cropAt(scene, currentTime, draft.crop_x ?? .5)} />}
-          {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000}/>
+          {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000} editing={captionStyleEditing} onPosition={value => patch({ speaker_subtitle_layout: { ...(draft.speaker_subtitle_layout || {font_scale:1,x:.5,y:.91}), ...value } })}/>
             : activeCue && <div className={`studio-caption-overlay studio-caption studio-caption--${draft.subtitle_style || 'clean'}`}>{activeCue.text}</div>)}
           {!showRendered && selected===0 && draft.hook && !artworkStyle && <div className={`studio-hook studio-hook--${draft.title_style || 'plain'}`}>{draft.hook}</div>}
           {!showRendered && selected===0 && draft.hook && artworkStyle && <TitleArtwork projectId={projectId} draft={draft}/>}
@@ -250,10 +268,19 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
         document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
         onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })}
+        onStyleEditingChange={setCaptionStyleEditing}
+        onAudition={(start, end, sceneIndex, loop) => {
+          auditionRange.current = { start, end, loop }; speakerSeek.current = start; setShowRendered(false)
+          if (sceneIndex !== selected) setSelected(sceneIndex)
+          const player = video.current
+          if (player) { player.currentTime = start; void player.play().catch(() => undefined) }
+          setCurrentTime(start)
+        }}
         onTimingPendingChange={pending => { timingPendingRef.current = pending; setTimingPending(pending) }}
         onApply={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source', subtitles: true, subtitles_auto_suppressed: false,
           caption_mask: draft.caption_mask || (workspace.generation?.source_has_burned_subtitles ? workspace.generation.burned_caption_band : null) })} onEnabled={value => patch({ speaker_colors: value })}
         onSeek={(seconds, sceneIndex = selected) => {
+          auditionRange.current = null
           speakerSeek.current = seconds
           setShowRendered(false)
           if (sceneIndex !== selected) setSelected(sceneIndex)
@@ -267,10 +294,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         {draft.scenes.map((s,i)=><div className="studio-scene-row" key={s.id}><Btn size="sm" onClick={()=>{setSelected(i);setShowRendered(false)}}>{i+1}. {s.label}</Btn><label>{t("起点（秒）")}<input type="number" min={0} step={.1} value={s.start} onChange={e=>updateScene(i,{start:Number(e.target.value)})}/></label><label>{t("终点（秒）")}<input type="number" min={0} step={.1} value={s.end} onChange={e=>updateScene(i,{end:Number(e.target.value)})}/></label><div className="studio-actions"><Btn size="sm" onClick={() => setPicker(i)}>{t("替换")}</Btn><Btn size="sm" disabled={i===0} onClick={()=>patch({scenes:moveScene(draft,i,-1).scenes})}>{t("上移")}</Btn><Btn size="sm" disabled={i===draft.scenes.length-1} onClick={()=>patch({scenes:moveScene(draft,i,1).scenes})}>{t("下移")}</Btn><Btn size="sm" disabled={draft.scenes.length===1} onClick={()=>{patch({scenes:draft.scenes.filter((_,index)=>index!==i)});setSelected(0)}}>{t("移除")}</Btn></div></div>)}
       </details>
       </section>
-      <DraftSettingsPanel draft={draft} patch={patch} scene={scene} currentTime={currentTime} onShot={setShot}
+      <details className="studio-details studio-basic-settings"><summary>{t('成片设置')}</summary><DraftSettingsPanel draft={draft} patch={patch} scene={scene} currentTime={currentTime} onShot={setShot}
         framing={framing} onAutoFrame={() => void autoFrame()} onInstallFraming={() => void installFraming()} onPortrait={applyPortrait}
         coverHref={previewUrl && currentJob ? `/project/${projectId}/publish/studio-${currentJob.job_id}` : undefined}
-        onOpenCover={href => navigate(href)} /></div>
+        onOpenCover={href => navigate(href)} /></details></div>
     </fieldset>
     {active && <div className="studio-render-state"><ProgressLine percent={active.percent}/><span className="studio-muted">{active.status==='queued'?t("等待渲染"):t("渲染成片")} · {active.percent}%</span></div>}
     {currentJob?.status==='failed' && <p className="studio-error" role="alert">{t(currentJob.error || '')}</p>}

@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { t } from '../../i18n'
 import { Btn } from '../../ui'
 import api from '../../services/api'
 import { errorText } from './api'
 import type { Scene, SpeakerCaptionLayout, SpeakerCue, SpeakerDocument } from './types'
-import { insertSpeakerCueInScenes, moveSpeakerCueInScenes, sortSpeakerCuesInScenes, speakerCuesForScenes, speakerCueSeek, speakerCueTiming } from './speakerSubtitleEditing'
+import { insertSpeakerCueInScenes, moveSpeakerCueInScenes, sortSpeakerCuesInScenes, speakerCuesForScenes, speakerCueSeek, speakerCueTiming, shiftSpeakerCues, replaceSpeakerText, validSpeakerLayout } from './speakerSubtitleEditing'
 import './speaker-subtitles.css'
 import CorrectionSuggestions from './CorrectionSuggestions'
 
-type State = { job: { job_id?: string; status: string; error?: string; percent?:number; completed_chunks?:number; total_chunks?:number }; document: SpeakerDocument | null }
+type State = { job: { job_id?: string; status: string; error?: string; percent?:number; completed_chunks?:number; total_chunks?:number }; document: SpeakerDocument | null; has_document?: boolean }
 
 type IconName = 'people' | 'chevron' | 'play' | 'up' | 'down' | 'plus' | 'remove' | 'settings'
 function Icon({ name }: { name: IconName }) {
@@ -21,13 +21,15 @@ function Icon({ name }: { name: IconName }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 
-export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, scenes, selectedScene = 0, autoEnabled = true, onChange, onApply, onLayout, onEnabled, onSeek, onTimingPendingChange }: {
+export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, scenes, selectedScene = 0, autoEnabled = true, onChange, onApply, onLayout, onEnabled, onSeek, onTimingPendingChange, onAudition, onStyleEditingChange }: {
   projectId: string; draftId: string; document?: SpeakerDocument | null; enabled: boolean; dirty: boolean; currentTime: number
   scenes?: Pick<Scene, 'start' | 'end'>[]; selectedScene?: number
   autoEnabled?: boolean
   layout?: SpeakerCaptionLayout | null; onLayout: (value: SpeakerCaptionLayout | null) => void
   onChange: (value: SpeakerDocument) => void; onApply: (value: SpeakerDocument) => void; onEnabled: (value: boolean) => void; onSeek: (seconds: number, sceneIndex?: number) => void
   onTimingPendingChange?: (pending: boolean) => void
+  onAudition?: (start: number, end: number, sceneIndex: number, loop: boolean) => void
+  onStyleEditingChange?: (editing: boolean) => void
 }) {
   const [backend, setBackend] = useState('whisper')
   const [prompt, setPrompt] = useState('')
@@ -40,43 +42,90 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   apply.current = onApply
   const requested = useRef(!document && enabled && autoEnabled)
   const autoRequested = useRef(false)
+  const requestEpoch = useRef(0)
+  const stopPolling = useRef<() => void>(() => undefined)
+  const expectedJob = useRef<string | undefined>()
+  const latestDocument = useRef(document)
+  latestDocument.current = document
+  const applyBaseline = useRef(document)
+  const settingsTouched = useRef(false)
+  const [pollVersion, setPollVersion] = useState(0)
   const base = `/studio/${projectId}/speaker-subtitles`
+  useEffect(() => {
+    let active = true
+    void api.get<unknown, { defaults?: { backend: string; prompt: string } }>('/studio/speaker-subtitles/status').then(state => {
+      if (active && !settingsTouched.current && state.defaults) {
+        setBackend(state.defaults.backend); setPrompt(state.defaults.prompt)
+      }
+    }).catch(() => undefined)
+    return () => { active = false }
+  }, [projectId])
   useEffect(() => {
     if (!document) requested.current = enabled && autoEnabled
   }, [document, enabled, autoEnabled])
   useEffect(() => {
-    let active = true
-    const refresh = async () => {
-      try {
-        const state = await api.get<unknown, State>(base)
-        if (!active) return
-        setJob(state.job)
-        setRecognized(state.document)
-        if (!state.document && requested.current && !autoRequested.current && ['idle', 'failed'].includes(state.job.status)) {
-          autoRequested.current = true
-          const automatic = await api.post<unknown, State['job']>(base + '/ensure')
-          if (!active) return
-          setJob(automatic)
-        }
-        if (state.document && requested.current && !['queued', 'running'].includes(state.job.status)) {
-          requested.current = false
-          apply.current({ ...state.document, speakers: state.document.speakers.map((speaker, index) => ({ ...speaker,
-            color: speaker.color === '#FFFFFF' ? ['#FF91BD', '#C0A5FF'][index % 2] : speaker.color })) })
-        }
-      } catch (e) { if (active) setError(errorText(e)) }
-    }
-    void refresh()
+    let active = true, inFlight = false, failures = 0
+    const epoch = requestEpoch.current
+    const controller = new AbortController()
+    const current = () => active && epoch === requestEpoch.current
     const timer = window.setInterval(() => void refresh(), 2500)
-    return () => { active = false; window.clearInterval(timer) }
-  }, [base])
+    const refresh = async () => {
+      if (inFlight || !current()) return
+      inFlight = true
+      try {
+        let state = await api.get<unknown, State>(base, { params: { include_document: false }, signal: controller.signal })
+        if (!current()) return
+        if (expectedJob.current && state.job.job_id !== expectedJob.current) return
+        failures = 0
+        setError(''); setJob(state.job)
+        if (!state.document && state.has_document !== true && requested.current && !autoRequested.current && ['idle', 'failed'].includes(state.job.status)) {
+          autoRequested.current = true
+          const automatic = await api.post<unknown, State['job']>(base + '/ensure', undefined, { signal: controller.signal })
+          if (!current()) return
+          expectedJob.current = automatic.job_id
+          setJob(automatic)
+          if (['queued', 'running'].includes(automatic.status)) return
+        }
+        if (['queued', 'running'].includes(state.job.status)) return
+        if (requested.current && (state.document || state.has_document)) {
+          if (!state.document) state = await api.get<unknown, State>(base, { signal: controller.signal })
+          if (!current() || (expectedJob.current && state.job.job_id !== expectedJob.current) || ['queued', 'running'].includes(state.job.status)) return
+          setRecognized(state.document)
+          if (state.document && (!latestDocument.current || latestDocument.current === applyBaseline.current)) {
+            apply.current({ ...state.document, speakers: state.document.speakers.map((speaker, index) => ({ ...speaker,
+              color: speaker.color === '#FFFFFF' ? ['#FF91BD', '#C0A5FF'][index % 2] : speaker.color })) })
+          }
+          requested.current = false
+        }
+        window.clearInterval(timer)
+      } catch (e) {
+        if (current()) {
+          setError(errorText(e))
+          if (++failures >= 3 || (e as { response?: { status?: number } }).response?.status) window.clearInterval(timer)
+        }
+      } finally { inFlight = false }
+    }
+    const stop = () => { active = false; controller.abort(); window.clearInterval(timer) }
+    stopPolling.current = stop
+    void refresh()
+    return stop
+  }, [base, pollVersion])
   const recognize = async () => {
-    setBusy(true); setError('')
+    ++requestEpoch.current; stopPolling.current()
+    requested.current = false; applyBaseline.current = latestDocument.current
+    setBusy(true); setError(''); setRecognized(null)
     try {
       const value = await api.post<unknown, State['job']>(base, { backend, prompt, reuse_subtitles: reuse })
+      expectedJob.current = value.job_id
       requested.current = true
-      setJob(value)
+      setJob(value); setPollVersion(version => version + 1)
     } catch (e) { setError(errorText(e)) }
     finally { setBusy(false) }
+  }
+  const pause = async () => {
+    ++requestEpoch.current; stopPolling.current(); requested.current = false
+    try { await api.post(base + '/cancel'); setJob({ ...job, status: 'cancelled' }) }
+    catch (e) { setError(errorText(e)); setPollVersion(version => version + 1) }
   }
   const [timingEdits, setTimingEdits] = useState<Record<string, { start: string; end: string }>>({})
   const timingEditsRef = useRef(timingEdits)
@@ -103,34 +152,99 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
     const input = Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === focusCue)
     if (input) { input.focus(); input.select(); input.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setFocusCue(null) }
   }, [focusCue, document])
-  const visibleCues = document ? speakerCuesForScenes(document.subtitles, scenes, retainedIds) : []
+  const visibleCues = useMemo(() => document ? speakerCuesForScenes(document.subtitles, scenes, retainedIds) : [],
+    [document?.subtitles, scope, retained.scope, retained.ids, timingEdits])
   const needsReview = (cue: SpeakerCue) => {
     const timing = timingEdits[cue.id] || { start: String(cue.start_ms / 1000), end: String(cue.end_ms / 1000) }
     return !cue.text.trim() || !speakerCueTiming(timing.start, timing.end, document?.duration_ms ?? 0)
   }
-  const reviewCount = visibleCues.filter(needsReview).length
+  const reviewCount = useMemo(() => visibleCues.filter(needsReview).length, [visibleCues, timingEdits])
   const normalizedQuery = query.trim().toLocaleLowerCase()
-  const cuePositions = new Map(visibleCues.map((cue, index) => [cue.id, index]))
-  const shownCues = visibleCues.filter(cue => {
+  const cuePositions = useMemo(() => new Map(visibleCues.map((cue, index) => [cue.id, index])), [visibleCues])
+  const shownCues = useMemo(() => visibleCues.filter(cue => {
     // Keep the focused row while its text/time changes no longer match a filter.
     if (cue.id === editingCue || cue.id === focusCue || timingEdits[cue.id]) return true
     return (!normalizedQuery || cue.text.toLocaleLowerCase().includes(normalizedQuery)) &&
       (!speakerFilter || (cue.speaker_id || '__unknown') === speakerFilter) && (!issuesOnly || needsReview(cue))
-  })
+  }), [visibleCues, normalizedQuery, speakerFilter, issuesOnly, editingCue, focusCue, timingEdits])
   const playbackCue = visibleCues.find(cue => cue.start_ms <= currentTime * 1000 && currentTime * 1000 < cue.end_ms) ||
     visibleCues.reduce<SpeakerCue | undefined>((nearest, cue) => !nearest || Math.abs(cue.start_ms - currentTime * 1000) < Math.abs(nearest.start_ms - currentTime * 1000) ? cue : nearest, undefined)
-  const clearFilters = () => { setQuery(''); setSpeakerFilter(''); setIssuesOnly(false) }
+  const [page, setPage] = useState(0)
+  const pageSize = 60
+  const pageCount = Math.max(1, Math.ceil(shownCues.length / pageSize))
+  const pageIndex = Math.min(page, pageCount - 1)
+  const pageCues = shownCues.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [replacement, setReplacement] = useState('')
+  const [offset, setOffset] = useState('0')
+  const [loop, setLoop] = useState(false)
+  const [toolMessage, setToolMessage] = useState('')
+  const [favorite, setFavorite] = useState<SpeakerCaptionLayout | null>(null)
+  const [projectPeople, setProjectPeople] = useState<SpeakerDocument['speakers'] | null>(null)
+  const history = useRef<{ past: SpeakerDocument[]; future: SpeakerDocument[] }>({ past: [], future: [] })
+  const [historyVersion, setHistoryVersion] = useState(0)
+  const readOnlyPending = Object.keys(timingEdits).length > 0
+  const selectCue = (cue: SpeakerCue) => {
+    clearFilters(); setPage(Math.floor((cuePositions.get(cue.id) || 0) / pageSize)); setRevealCue(cue.id)
+    const target = speakerCueSeek(cue, scenes || [{ start: 0, end: (document?.duration_ms || 0) / 1000 }], selectedScene)
+    if (target) onSeek(target.seconds, target.sceneIndex)
+  }
+  const audition = (cue: SpeakerCue) => {
+    const windows = scenes || [{ start: 0, end: (document?.duration_ms || 0) / 1000 }]
+    const target = speakerCueSeek(cue, windows, selectedScene)
+    if (target) {
+      if (onAudition) onAudition(target.seconds, Math.min(cue.end_ms / 1000, windows[target.sceneIndex].end), target.sceneIndex, loop)
+      else onSeek(target.seconds, target.sceneIndex)
+    }
+  }
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem('autoclip.speaker-layout.v1') || 'null')
+      if (validSpeakerLayout(saved)) setFavorite(saved)
+      const people = JSON.parse(localStorage.getItem(`autoclip.speaker-people.${projectId}`) || 'null')
+      if (Array.isArray(people) && people.length <= 100 && people.every(person => person && /^spk_[0-9]+$/.test(person.speaker_id) &&
+        typeof person.display_name === 'string' && person.display_name.length <= 40 && /^#[0-9a-fA-F]{6}$/.test(person.color))) setProjectPeople(people)
+    } catch { /* Optional local preset must not prevent editing. */ }
+  }, [])
+  useEffect(() => { onStyleEditingChange?.(editorView === 'style'); return () => onStyleEditingChange?.(false) }, [editorView])
+  const clearFilters = () => { setQuery(''); setSpeakerFilter(''); setIssuesOnly(false); setPage(0) }
   useEffect(() => {
     if (!revealCue) return
     const input = Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === revealCue)
     if (input) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setRevealCue(null) }
-  }, [revealCue, editorView, query, speakerFilter, issuesOnly])
+  }, [revealCue, editorView, query, speakerFilter, issuesOnly, pageIndex])
   const processing = busy || ['queued', 'running'].includes(job.status)
   const layoutValue = layout || { font_scale: 1, x: .5, y: .91 }
   const outline = { enabled: layout?.outline_enabled !== false, width: layout?.outline_width ?? 2, color: layout?.outline_color || '#000000' }
   const patchOutline = (update: Partial<SpeakerCaptionLayout>) => onLayout({ ...layoutValue,
     outline_enabled: outline.enabled, outline_width: outline.width, outline_color: outline.color, ...update })
-  const patch = (update: Partial<SpeakerDocument>) => { if (document) onChange({ ...document, ...update }) }
+  const patch = (update: Partial<SpeakerDocument>) => {
+    if (!document) return
+    history.current.past = [...history.current.past.slice(-19), document]
+    history.current.future = []; setHistoryVersion(historyVersion + 1)
+    onChange({ ...document, ...update })
+  }
+  const travel = (redo: boolean) => {
+    if (!document || readOnlyPending) return
+    const from = redo ? history.current.future : history.current.past
+    const value = from.pop()
+    if (!value) return
+    ;(redo ? history.current.past : history.current.future).push(document)
+    onChange(value); setHistoryVersion(historyVersion + 1)
+  }
+  const batchIds = selectedIds.filter(id => visibleCues.some(cue => cue.id === id))
+  const shift = () => {
+    if (!document) return
+    const subtitles = shiftSpeakerCues(document.subtitles, batchIds, offset, document.duration_ms)
+    if (subtitles) { patch({ subtitles }); setToolMessage(t('已调整选中字幕的时间')) }
+    else setToolMessage(t('时间偏移无效或会超出原片范围，请检查。'))
+  }
+  const replace = () => {
+    if (!document || !query.trim()) return
+    const result = replaceSpeakerText(document.subtitles, batchIds.length ? batchIds : visibleCues.map(cue => cue.id), query.trim(), replacement)
+    if (!result) { setToolMessage(t('替换后字幕不能为空或超过 2000 字')); return }
+    patch({ subtitles: result }); setToolMessage(t('已替换当前范围内的文字'))
+  }
   const cancelTiming = (id: string) => {
     const next = { ...timingEditsRef.current }; delete next[id]; changeTimingEdits(next)
   }
@@ -162,28 +276,39 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         <summary><Icon name="settings"/><span>{t('识别设置')}</span><span className="speaker-recognition-status">{processing ? `${t('正在识别字幕…')} ${job.percent ?? 0}%` : 'CPU'}</span><Icon name="chevron"/></summary>
         <div className="speaker-recognition-body">
           <div className="speaker-recognition-fields">
-            <label className="speaker-field"><span>{t('转写模型')}</span><select className="ac-input" aria-label={t('转写模型')} value={backend} onChange={e => setBackend(e.target.value)}><option value="whisper">Whisper medium · CPU</option><option value="sensevoice">SenseVoiceSmall · CPU</option></select></label>
-            <label className="speaker-field"><span>{t('转写提示词')}</span><input className="ac-input" aria-label={t('转写提示词')} value={prompt} maxLength={500} onChange={e => setPrompt(e.target.value)}/></label>
+            <label className="speaker-field"><span>{t('转写模型')}</span><select className="ac-input" aria-label={t('转写模型')} value={backend} onChange={e => { settingsTouched.current = true; setBackend(e.target.value) }}><option value="whisper">Whisper medium · CPU</option><option value="sensevoice">SenseVoiceSmall · CPU</option></select></label>
+            <label className="speaker-field"><span>{t('转写提示词')}</span><input className="ac-input" aria-label={t('转写提示词')} value={prompt} maxLength={500} onChange={e => { settingsTouched.current = true; setPrompt(e.target.value) }}/></label>
           </div>
           <div className="speaker-recognition-footer">
-            <label className="speaker-check"><input type="checkbox" checked={reuse} onChange={e => setReuse(e.target.checked)}/><span>{t('复用已有字幕')}</span></label>
-            <div className="speaker-buttons">{processing && <Btn size="sm" onClick={()=>void api.post(base+'/cancel').catch(e=>setError(errorText(e)))}>{t('暂停识别')}</Btn>}<Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
+            <label className="speaker-check"><input type="checkbox" checked={reuse} onChange={e => setReuse(e.target.checked)}/><span>{t('复用已有字幕')}</span></label><span className="speaker-timing-hint">{t('识别设置沿用已保存配置，可临时调整。')}</span>
+            <div className="speaker-buttons">{processing && <Btn size="sm" onClick={() => void pause()}>{t('暂停识别')}</Btn>}<Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
               {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing} onClick={() => onApply(recognized)}>{t('应用识别结果')}</Btn>}
             </div>
           </div>
         </div>
       </details>
       {job.total_chunks && <p className="studio-muted">{t('分段进度 {{done}} / {{total}}', {done:job.completed_chunks||0,total:job.total_chunks})}</p>}
+      {toolMessage && <p role="status" className="speaker-timing-hint">{toolMessage}</p>}
       {(error || job.error) && <p role="alert" className="speaker-error">{t(error || job.error || '')}</p>}
       {document && <>
         <div className="speaker-view-switch" role="group" aria-label={t('字幕工具')}>
           <Btn size="sm" aria-pressed={editorView === 'captions'} onClick={() => setEditorView('captions')}>{t('字幕编辑')}</Btn>
           <Btn size="sm" aria-pressed={editorView === 'style'} onClick={() => setEditorView('style')}>{t('人物与样式')}</Btn>
         </div>
-        <div hidden={editorView !== 'captions'}><CorrectionSuggestions projectId={projectId} document={document} cueIds={visibleCues.map(cue => cue.id)} onChange={onChange}/></div>
+        <div hidden={editorView !== 'captions'}><CorrectionSuggestions projectId={projectId} document={document} cueIds={visibleCues.map(cue => cue.id)} onChange={value => patch(value)}/></div>
         <section className="speaker-section" hidden={editorView !== 'style'}>
           <div className="speaker-section-head"><div><h3>{t('人物与颜色')}</h3><p>{t('给说话人命名，颜色会跟随对应字幕。')}</p></div>
             <label className="speaker-color-switch"><input type="checkbox" aria-label={t('启用双色字幕')} checked={enabled} onChange={e => onEnabled(e.target.checked)}/><span className="speaker-switch-track"/><span>{t('启用双色字幕')}</span></label>
+          </div>
+          <div className="speaker-preset-bar">
+            <Btn size="sm" disabled={!projectPeople} onClick={() => patch({ speakers: document.speakers.map(speaker => {
+              const appearance = projectPeople?.find(person => person.speaker_id === speaker.speaker_id)
+              return appearance ? { ...speaker, display_name: appearance.display_name, color: appearance.color } : speaker
+            }) })}>{t('套用项目人物')}</Btn>
+            <Btn size="sm" variant="text" onClick={() => {
+              try { localStorage.setItem(`autoclip.speaker-people.${projectId}`, JSON.stringify(document.speakers)); setProjectPeople(document.speakers); setToolMessage(t('人物配置已保存在本机，可在本项目其他切片套用。')) }
+              catch { setToolMessage(t('无法保存本机样式')) }
+            }}>{t('记住本项目人物')}</Btn>
           </div>
           <div className="speaker-people">
             {document.speakers.map((speaker, index) => <div className="speaker-person" key={speaker.speaker_id} style={{ '--speaker-color': speaker.color } as CSSProperties}>
@@ -197,22 +322,45 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         </section>
         <section className="speaker-section" hidden={editorView !== 'style'}>
           <div className="speaker-section-head"><div><h3>{t('字幕样式与位置')}</h3><p>{t('100% 为默认字号；位置按画面百分比。')}</p></div><Btn variant="text" size="sm" onClick={() => onLayout(null)}>{t('恢复字幕布局')}</Btn></div>
-          <div className="speaker-layout-controls">
-            <label className="speaker-slider"><span>{t('字幕大小（%）')}<output>{Math.round(layoutValue.font_scale * 100)}%</output></span><input type="range" aria-label={t('字幕大小（%）')} min={50} max={250} step={5} value={Math.round(layoutValue.font_scale * 100)} onChange={e => onLayout({ ...layoutValue, font_scale: Number(e.target.value) / 100 })}/></label>
-            <label className="speaker-slider"><span>{t('横向位置（%）')}<output>{Math.round(layoutValue.x * 100)}%</output></span><input type="range" aria-label={t('横向位置（%）')} min={5} max={95} step={1} value={Math.round(layoutValue.x * 100)} onChange={e => onLayout({ ...layoutValue, x: Number(e.target.value) / 100 })}/></label>
-            <label className="speaker-slider"><span>{t('纵向位置（%）')}<output>{Math.round(layoutValue.y * 100)}%</output></span><input type="range" aria-label={t('纵向位置（%）')} min={15} max={95} step={1} value={Math.round(layoutValue.y * 100)} onChange={e => onLayout({ ...layoutValue, y: Number(e.target.value) / 100 })}/></label>
+          <div className="speaker-preset-bar">
+            <Btn size="sm" onClick={() => onLayout({ ...layoutValue, font_scale: 1, x: .5, y: .91 })}>{t('标准底部')}</Btn>
+            <Btn size="sm" onClick={() => onLayout({ ...layoutValue, font_scale: 1.25, x: .5, y: .82 })}>{t('大字安全区')}</Btn>
+            <Btn size="sm" disabled={!favorite} onClick={() => favorite && onLayout({ ...favorite })}>{t('应用我的样式')}</Btn>
+            <Btn size="sm" variant="text" onClick={() => {
+              try { localStorage.setItem('autoclip.speaker-layout.v1', JSON.stringify(layoutValue)); setFavorite({ ...layoutValue }); setToolMessage(t('样式已保存到本机')) }
+              catch { setToolMessage(t('无法保存本机样式')) }
+            }}>{t('记住此样式')}</Btn>
           </div>
-          <div className="speaker-outline-controls">
+          <p className="speaker-timing-hint">{t('可在左侧预览拖动字幕，或用方向键微调位置。')}</p>
+          <div className="speaker-layout-controls">
+            <label className="speaker-slider"><span>{t('字幕大小（%）')}<input className="speaker-number" type="number" aria-label={t('字幕大小（%）数值')} min={50} max={250} step={1} value={Math.round(layoutValue.font_scale * 100)} onChange={event => { const value = event.target.valueAsNumber; if (Number.isFinite(value) && value >= 50 && value <= 250) onLayout({ ...layoutValue, font_scale: value / 100 }) }}/></span><input type="range" aria-label={t('字幕大小（%）')} min={50} max={250} step={5} value={Math.round(layoutValue.font_scale * 100)} onChange={e => onLayout({ ...layoutValue, font_scale: Number(e.target.value) / 100 })}/></label>
+            <label className="speaker-slider"><span>{t('横向位置（%）')}<input className="speaker-number" type="number" aria-label={t('横向位置（%）数值')} min={5} max={95} step={1} value={Math.round(layoutValue.x * 100)} onChange={event => { const value = event.target.valueAsNumber; if (Number.isFinite(value) && value >= 5 && value <= 95) onLayout({ ...layoutValue, x: value / 100 }) }}/></span><input type="range" aria-label={t('横向位置（%）')} min={5} max={95} step={1} value={Math.round(layoutValue.x * 100)} onChange={e => onLayout({ ...layoutValue, x: Number(e.target.value) / 100 })}/></label>
+            <label className="speaker-slider"><span>{t('纵向位置（%）')}<input className="speaker-number" type="number" aria-label={t('纵向位置（%）数值')} min={15} max={95} step={1} value={Math.round(layoutValue.y * 100)} onChange={event => { const value = event.target.valueAsNumber; if (Number.isFinite(value) && value >= 15 && value <= 95) onLayout({ ...layoutValue, y: value / 100 }) }}/></span><input type="range" aria-label={t('纵向位置（%）')} min={15} max={95} step={1} value={Math.round(layoutValue.y * 100)} onChange={e => onLayout({ ...layoutValue, y: Number(e.target.value) / 100 })}/></label>
+          </div>
+          <details className="speaker-outline-controls"><summary>{t('描边与高级样式')}</summary>
             <div className="speaker-outline-heading"><label className="speaker-color-switch"><input type="checkbox" aria-label={t('字幕描边')} checked={outline.enabled} onChange={event => patchOutline({ outline_enabled: event.target.checked })}/><span className="speaker-switch-track"/><span>{t('字幕描边')}</span></label><span className="speaker-outline-hint">{t('粗细随字号缩放，关闭后不显示描边。')}</span></div>
             <div className="speaker-outline-options">
               <label className={`speaker-outline-color${outline.enabled ? '' : ' speaker-outline-color--disabled'}`}><span>{t('描边颜色')}</span><span className="speaker-color-picker"><input type="color" aria-label={t('描边颜色')} disabled={!outline.enabled} value={outline.color} onChange={event => patchOutline({ outline_color: event.target.value })}/><span aria-hidden="true" style={{ background: outline.color }}/></span><span className="speaker-outline-hex" aria-hidden="true">{outline.color.toUpperCase()}</span></label>
               <label className={`speaker-slider${outline.enabled ? '' : ' speaker-slider--disabled'}`}><span>{t('描边粗细（px）')}<output>{outline.width}px</output></span><input type="range" aria-label={t('描边粗细（px）')} min={.5} max={8} step={.5} disabled={!outline.enabled} value={outline.width} onChange={event => patchOutline({ outline_width: Number(event.target.value) })}/></label>
             </div>
-          </div>
+          </details>
         </section>
         <section className="speaker-section speaker-captions-section" hidden={editorView !== 'captions'}>
           <div className="speaker-section-head"><div><h3>{t('逐句校对')}<span className="speaker-small-count">{visibleCues.length}</span></h3><p>{t('仅显示当前切片的字幕；时间按原视频计。')}</p></div><Btn size="sm" onClick={() => patch({ subtitles: sortSpeakerCuesInScenes(document.subtitles, scenes, retainedIds) })}>{t('按时间排序')}</Btn></div>
           <div className="speaker-editor-toolbar">
+            <div className="speaker-toolbar-actions">
+              <Btn size="sm" disabled={readOnlyPending || !history.current.past.length} onClick={() => travel(false)}>{t('撤销')}</Btn>
+              <Btn size="sm" disabled={readOnlyPending || !history.current.future.length} onClick={() => travel(true)}>{t('重做')}</Btn>
+              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
+                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
+                selectCue(visibleCues[Math.max(0, index - 1)])
+              }}>{t('上一句')}</Btn>
+              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
+                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
+                selectCue(visibleCues[Math.min(visibleCues.length - 1, index + 1)])
+              }}>{t('下一句')}</Btn>
+              <label className="speaker-check"><input type="checkbox" checked={loop} onChange={event => setLoop(event.target.checked)}/>{t('循环试听')}</label>
+            </div>
             <div className="speaker-search-row">
               <input className="ac-input speaker-search" type="search" aria-label={t('搜索字幕文字')} placeholder={t('搜索字幕文字')} value={query} onChange={event => setQuery(event.target.value)}/>
               <select className="ac-input speaker-filter" aria-label={t('筛选说话人')} value={speakerFilter} onChange={event => setSpeakerFilter(event.target.value)}>
@@ -222,16 +370,33 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
             </div>
             <div className="speaker-toolbar-actions">
               <Btn size="sm" aria-pressed={issuesOnly} onClick={() => setIssuesOnly(!issuesOnly)}>{t('待修正')}<span className="speaker-review-count">{reviewCount}</span></Btn>
-              <Btn size="sm" disabled={!playbackCue} onClick={() => { clearFilters(); setRevealCue(playbackCue?.id || null) }}>{t('定位播放位置')}</Btn>
+              <Btn size="sm" disabled={!playbackCue} onClick={() => { if (playbackCue) selectCue(playbackCue) }}>{t('定位播放位置')}</Btn>
               <Btn size="sm" disabled={document.subtitles.length >= 10000} onClick={() => addCue()}><Icon name="plus"/>{t('在播放位置补句')}</Btn>
             </div>
             <div className="speaker-filter-status"><span role="status">{t('显示 {{shown}} / {{total}} 条', { shown: shownCues.length, total: visibleCues.length })}</span>
               {(query || speakerFilter || issuesOnly) && <Btn size="sm" variant="text" onClick={clearFilters}>{t('清除筛选')}</Btn>}
             </div>
           </div>
-          <p className="speaker-timing-hint">{t('时间支持秒或 分:秒；离开时间框或按 Enter 应用，Esc 取消。')}</p>
+          <details className="speaker-batch-tools"><summary>{t('批量修改与替换')}</summary>
+            <div className="speaker-toolbar-actions">
+              <Btn size="sm" onClick={() => setSelectedIds(pageCues.map(cue => cue.id))}>{t('选择当前页')}</Btn>
+              <Btn size="sm" disabled={!selectedIds.length} onClick={() => setSelectedIds([])}>{t('取消选择')}</Btn>
+              <span>{t('已选 {{count}} 条', { count: batchIds.length })}</span>
+              <select aria-label={t('批量设置说话人')} className="ac-input" value="" disabled={!batchIds.length || readOnlyPending} onChange={event => {
+                if (event.target.value) patch({ subtitles: document.subtitles.map(cue => batchIds.includes(cue.id) ? { ...cue, speaker_id: event.target.value === '__unknown' ? null : event.target.value, assignment_reason: 'manual' } : cue) })
+              }}><option value="">{t('批量设置说话人')}</option><option value="__unknown">{t('未知')}</option>{document.speakers.map(speaker => <option key={speaker.speaker_id} value={speaker.speaker_id}>{speaker.display_name || speaker.speaker_id}</option>)}</select>
+            </div>
+            <div className="speaker-toolbar-actions">
+              <label>{t('时间偏移（秒）')}<input className="ac-input" aria-label={t('时间偏移（秒）')} type="text" inputMode="decimal" value={offset} onChange={event => setOffset(event.target.value)}/></label>
+              <Btn size="sm" disabled={!batchIds.length || readOnlyPending} onClick={shift}>{t('偏移选中字幕')}</Btn>
+            </div>
+            <div className="speaker-toolbar-actions"><input className="ac-input" aria-label={t('替换为')} placeholder={t('替换为')} value={replacement} maxLength={2000} onChange={event => setReplacement(event.target.value)}/>
+              <Btn size="sm" disabled={!query.trim() || readOnlyPending} onClick={replace}>{t('替换搜索文字')}</Btn></div>
+            <p className="speaker-timing-hint">{t('替换作用于选中字幕；未选择时作用于当前切片。支持撤销。')}</p>
+          </details>
+          <p className="speaker-timing-hint">{t('时间支持秒或 分:秒；离开时间框或按 Enter 应用，Esc 取消。')} {t('Alt + 上下键切换句子，Ctrl + Enter 试听。')}</p>
           <ol className="speaker-cues" ref={cueList}>
-            {shownCues.map(cue => {
+            {pageCues.map(cue => {
               const index = cuePositions.get(cue.id)!
               const update = (changes: Partial<typeof cue>) => patch({ subtitles: document.subtitles.map(c => c.id === cue.id ? { ...c, ...changes, assignment_reason: 'manual' } : c) })
               const active = cue.start_ms <= currentTime * 1000 && currentTime * 1000 < cue.end_ms
@@ -244,6 +409,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEditingCue(null)
               }} style={{ '--speaker-color': speaker?.color || 'var(--ac-muted)' } as CSSProperties}>
                 <div className="speaker-cue-head">
+                  <input className="speaker-cue-select" type="checkbox" aria-label={`${t('选择字幕')} ${cue.id}`} checked={selectedIds.includes(cue.id)} onChange={event => setSelectedIds(event.target.checked ? [...selectedIds, cue.id] : selectedIds.filter(id => id !== cue.id))}/>
                   <span className="speaker-cue-number">{String(index + 1).padStart(2, '0')}</span>
                   <div className="speaker-cue-time" onBlur={event => {
                     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) applyTiming(cue)
@@ -266,15 +432,18 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                       </>}
                     </div>
                   </div>
-                  <Btn className="speaker-audition" size="sm" onClick={() => {
-                    const target = speakerCueSeek(cue, scenes || [{ start: 0, end: document.duration_ms / 1000 }], selectedScene)
-                    if (target) onSeek(target.seconds, target.sceneIndex)
-                  }}><Icon name="play"/>{t('试听')}</Btn>
+                  <Btn className="speaker-audition" size="sm" onClick={() => audition(cue)}><Icon name="play"/>{t('试听')}</Btn>
                 </div>
                 {invalidTiming && <p className="speaker-error" role="alert">{t('时间尚未应用：请填写有效起止时间，终点须晚于起点且不超过原片时长。')}</p>}
                 {!timingEdits[cue.id] && needsReview(cue) && <p className="speaker-error" role="alert">{t('字幕文字不能为空，结束时间必须晚于开始时间。')}</p>}
                 {!speakerCuesForScenes([cue], scenes).length && <p className="speaker-timing-hint">{t('此句已移出当前切片，仍保留在此处供修改。')}</p>}
-                <textarea className="speaker-cue-text ac-input" data-cue-id={cue.id} aria-label={`${t('字幕文本')} ${cue.id}`} rows={2} maxLength={2000} value={cue.text} onChange={e => update({ text: e.target.value })}/>
+                <textarea className="speaker-cue-text ac-input" data-cue-id={cue.id} aria-label={`${t('字幕文本')} ${cue.id}`} rows={2} maxLength={2000} value={cue.text} onKeyDown={event => {
+                  if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); audition(cue) }
+                  if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+                    event.preventDefault()
+                    selectCue(visibleCues[Math.max(0, Math.min(visibleCues.length - 1, index + (event.key === 'ArrowUp' ? -1 : 1)))])
+                  }
+                }} onChange={e => update({ text: e.target.value })}/>
                 <div className="speaker-cue-footer">
                   <div className="speaker-cue-assignment"><span className="speaker-cue-dot"/>
                     <select className="speaker-inline-select" aria-label={`${t('说话人')} ${cue.id}`} value={cue.speaker_id || ''} onChange={e => update({ speaker_id: e.target.value || null })}>
@@ -297,6 +466,11 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
               </li>
             })}
           </ol>
+          {pageCount > 1 && <div className="speaker-pagination">
+            <Btn size="sm" disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>{t('上一页')}</Btn>
+            <span>{pageIndex + 1} / {pageCount}</span>
+            <Btn size="sm" disabled={pageIndex + 1 >= pageCount} onClick={() => setPage(pageIndex + 1)}>{t('下一页')}</Btn>
+          </div>}
           {!shownCues.length && <p className="speaker-empty">{t(visibleCues.length ? '没有符合筛选条件的字幕。' : '当前切片没有对应字幕，可补充字幕。')}</p>}
           {removed && <div className="speaker-undo" role="status"><span>{t('已删除一条字幕')}</span><Btn size="sm" variant="text" disabled={document.subtitles.length >= 10000} onClick={() => {
             const subtitles = [...document.subtitles]

@@ -41,7 +41,7 @@ test('preview coordinates match ASS layout and overlap allocation, including rou
 test('actual editor controls change layout and reorder or insert cues without recognition calls', () => {
   const jsx = (type, props) => ({ type, props })
   const Component = load('SpeakerSubtitles.tsx', {
-    react: { useEffect() {}, useRef: current => ({ current }), useState: current => [current, () => {}] },
+    react: { useMemo: fn => fn(), useEffect() {}, useRef: current => ({ current }), useState: current => [current, () => {}] },
     'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x }, '../../ui': { Btn: 'button' },
     '../../services/api': { default: { defaults: { baseURL: '/api/v1' }, get: () => assert.fail('no recognition') } },
     './api': { errorText: String }, './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './CorrectionSuggestions': {default:'correction-suggestions'},
@@ -76,14 +76,14 @@ test('outline defaults preserve legacy width and explicit widths follow the font
 
 test('actual caption preview uses colored text strokes and supports removing them', () => {
   const jsx = (type, props) => ({ type, props })
-  const Preview = load('SpeakerCaptionPreview.tsx', { 'react/jsx-runtime': { jsx, jsxs: jsx }, './speakerSubtitleEditing': editing }).default
+  const Preview = load('SpeakerCaptionPreview.tsx', { react: { useRef: current => ({current}) }, '../../i18n': {t:x=>x}, 'react/jsx-runtime': { jsx, jsxs: jsx }, './speakerSubtitleEditing': editing }).default
   const props = { document: doc, colors: false, style: 'clean', width: 320, height: 180, time: .5, sceneStart: 0, sceneEnd: 7 }
   const layout = { font_scale: 1.5, x: .5, y: .91, outline_width: 3, outline_color: '#12ABEF' }
-  const on = Preview({...props,layout}).props.children[0].props.style
+  const on = Preview({...props,layout}).props.children.flat().find(node => node && node.props?.style?.paintOrder).props.style
   assert.equal(on.WebkitTextStroke, '2.8125cqw #12ABEF')
   assert.equal(on.paintOrder, 'stroke fill')
   assert.equal(on.color, '#FFFFFF')
-  const off = Preview({...props,layout:{...layout,outline_enabled:false}}).props.children[0].props.style
+  const off = Preview({...props,layout:{...layout,outline_enabled:false}}).props.children.flat().find(node => node && node.props?.style?.paintOrder).props.style
   assert.equal(off.WebkitTextStroke, '0 transparent')
   assert.equal(off.textShadow, 'none')
 })

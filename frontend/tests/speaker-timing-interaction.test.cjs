@@ -6,7 +6,7 @@ function load(file,mocks={}) {
  const exports={}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio',file),'utf8'),{
   compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,
-  {exports,require:id=>mocks[id]||assert.fail(id),crypto:{randomUUID:()=> 'added'}})
+  {AbortController,exports,require:id=>mocks[id]||assert.fail(id),crypto:{randomUUID:()=> 'added'}})
  return exports
 }
 const editing=load('speakerSubtitleEditing.ts')
@@ -14,7 +14,7 @@ const cue=(id,start,end)=>({id,start_ms:start,end_ms:end,text:id,layer:1,speaker
 function mount(options={}) {
  let document=options.document||{duration_ms:10000,speakers:[],turns:[],subtitles:[cue('hidden',0,500),cue('a',1200,1800),cue('b',2200,2800)]}
  const hooks=[];let index=0,pending=false,changes=0
- const react={useEffect(){},useRef:value=>{const i=index++;return hooks[i]??(hooks[i]={current:value})},
+ const react={useMemo:fn=>fn(),useEffect(){},useRef:value=>{const i=index++;return hooks[i]??(hooks[i]={current:value})},
   useState:value=>{const i=index++;if(!(i in hooks))hooks[i]=value;return [hooks[i],next=>{hooks[i]=typeof next==='function'?next(hooks[i]):next}]}}
  const Component=load('SpeakerSubtitles.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},
   '../../services/api':{default:{defaults:{baseURL:'/api'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,
@@ -137,7 +137,7 @@ test('undo also restores an unfinished timestamp instead of silently discarding 
 test('the real editor blocks save, export and new-version creation while caption timing is pending',async()=>{
  const doc={id:'d',revision:1,title:'Test',origin:'manual',aspect:'portrait',subtitles:true,original_audio:true,scenes:[{id:'s',start:1,end:3}],speaker_subtitles:{duration_ms:10000,speakers:[],subtitles:[]}}
  const hooks=[doc,JSON.stringify(doc)];let index=0,saves=0,exports=0
- const react={useEffect(){},useRef:value=>{const i=index++;return hooks[i]??(hooks[i]={current:value})},
+ const react={useMemo:fn=>fn(),useEffect(){},useRef:value=>{const i=index++;return hooks[i]??(hooks[i]={current:value})},
   useState:value=>{const i=index++;if(!(i in hooks))hooks[i]=value;return [hooks[i],next=>{hooks[i]=typeof next==='function'?next(hooks[i]):next}]}}
  const api={source:()=>'/fixture.mp4',save:async(_id,draft)=>{saves++;return draft},export:async()=>{exports++}}
  const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'react-i18next':{useTranslation(){}},'../../i18n':{t:x=>x},
