@@ -1,6 +1,9 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), ts = require('typescript')
+
+const timelineTools = (() => { const exports = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/features/studio/subtitleTimelineEditing.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports}); return exports })()
 function load(name, mocks = {}) {
   const exports = {}
   const source = fs.readFileSync(path.join(__dirname, '../src/features/studio', name), 'utf8')
@@ -42,9 +45,9 @@ test('actual editor controls change layout and reorder or insert cues without re
   const jsx = (type, props) => ({ type, props })
   const Component = load('SpeakerSubtitles.tsx', {
     react: { useMemo: fn => fn(), useEffect() {}, useRef: current => ({ current }), useState: current => [current, () => {}] },
-    'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x }, '../../ui': { Btn: 'button' },
+    'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x }, '../../ui': { Btn: 'button', Dialog:'dialog' },
     '../../services/api': { default: { defaults: { baseURL: '/api/v1' }, get: () => assert.fail('no recognition') } },
-    './api': { errorText: String }, './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './CorrectionSuggestions': {default:'correction-suggestions'},
+    './api': { errorText: String }, './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools, './CorrectionSuggestions': {default:'correction-suggestions'},
   }).default
   const nodes = value => !value || typeof value !== 'object' ? [] : Array.isArray(value) ? value.flatMap(nodes) : [value, ...nodes(value.props?.children)]
   let next, layout

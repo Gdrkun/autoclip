@@ -215,6 +215,22 @@ def speaker_subtitle_state(project_id: str, db: Session = Depends(get_db), inclu
             'document': document.model_dump() if document else None}
 
 
+class SubtitleWaveformResponse(BaseModel):
+    start_ms: int = Field(ge=0)
+    end_ms: int = Field(gt=0)
+    peaks: list[float] = Field(min_length=64, max_length=1600)
+    source_version: str = Field(pattern=r'^[a-f0-9]{64}$')
+
+
+@router.get('/{project_id}/subtitle-waveform', response_model=SubtitleWaveformResponse)
+def subtitle_waveform(project_id: str, start: float = Query(ge=0, allow_inf_nan=False),
+                      end: float = Query(gt=0, allow_inf_nan=False), points: int = Query(800, ge=64, le=1600),
+                      db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    from backend.services.subtitle_waveform import waveform
+    return call(waveform, project_id, start, end, points)
+
+
 @router.get('/{project_id}/drafts/{draft_id}/speaker-subtitles.ass')
 def export_speaker_ass(project_id: str, draft_id: str, db: Session = Depends(get_db)):
     from backend.services.speaker_ass import draft_ass

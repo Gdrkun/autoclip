@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { t } from '../../i18n'
-import { Btn } from '../../ui'
+import { Btn, Dialog } from '../../ui'
+import SubtitleTimeline from './SubtitleTimeline'
+import { splitSubtitle, mergeSubtitles, retimeSubtitle, addSubtitleRange, adjacentSubtitle, cueInsideWindow, clockTime } from './subtitleTimelineEditing'
 import api from '../../services/api'
 import { errorText } from './api'
 import type { Scene, SpeakerCaptionLayout, SpeakerCue, SpeakerDocument } from './types'
@@ -21,7 +23,7 @@ function Icon({ name }: { name: IconName }) {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]}/></svg>
 }
 
-export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, scenes, selectedScene = 0, autoEnabled = true, onChange, onApply, onLayout, onEnabled, onSeek, onTimingPendingChange, onAudition, onStyleEditingChange }: {
+export default function SpeakerSubtitles({ projectId, draftId, document, layout, enabled, dirty, currentTime, scenes, selectedScene = 0, autoEnabled = true, onChange, onApply, onLayout, onEnabled, onSeek, onTimingPendingChange, onAudition, onStyleEditingChange, onPause, onLoopChange }: {
   projectId: string; draftId: string; document?: SpeakerDocument | null; enabled: boolean; dirty: boolean; currentTime: number
   scenes?: Pick<Scene, 'start' | 'end'>[]; selectedScene?: number
   autoEnabled?: boolean
@@ -30,6 +32,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   onTimingPendingChange?: (pending: boolean) => void
   onAudition?: (start: number, end: number, sceneIndex: number, loop: boolean) => void
   onStyleEditingChange?: (editing: boolean) => void
+  onPause?: () => void; onLoopChange?: (loop: boolean) => void
 }) {
   const [backend, setBackend] = useState('whisper')
   const [prompt, setPrompt] = useState('')
@@ -45,6 +48,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const requestEpoch = useRef(0)
   const stopPolling = useRef<() => void>(() => undefined)
   const expectedJob = useRef<string | undefined>()
+  const observedJob = useRef<string | undefined>()
   const latestDocument = useRef(document)
   latestDocument.current = document
   const applyBaseline = useRef(document)
@@ -75,7 +79,13 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
       try {
         let state = await api.get<unknown, State>(base, { params: { include_document: false }, signal: controller.signal })
         if (!current()) return
-        if (expectedJob.current && state.job.job_id !== expectedJob.current) return
+        if (expectedJob.current && state.job.job_id !== expectedJob.current) {
+          // A later task in another window supersedes ours. Observe it without auto-applying its document.
+          expectedJob.current = state.job.job_id; requested.current = false
+          setRecognized(null); setToolMessage(t('识别任务已在其他窗口更新，当前修改已保留。'))
+        }
+        if (observedJob.current !== state.job.job_id && !requested.current) setRecognized(null)
+        observedJob.current = state.job.job_id
         failures = 0
         setError(''); setJob(state.job)
         if (!state.document && state.has_document !== true && requested.current && !autoRequested.current && ['idle', 'failed'].includes(state.job.status)) {
@@ -91,7 +101,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           if (!state.document) state = await api.get<unknown, State>(base, { signal: controller.signal })
           if (!current() || (expectedJob.current && state.job.job_id !== expectedJob.current) || ['queued', 'running'].includes(state.job.status)) return
           setRecognized(state.document)
-          if (state.document && (!latestDocument.current || latestDocument.current === applyBaseline.current)) {
+          if (state.document && !Object.keys(timingEditsRef.current).length && (!latestDocument.current || latestDocument.current === applyBaseline.current)) {
             apply.current({ ...state.document, speakers: state.document.speakers.map((speaker, index) => ({ ...speaker,
               color: speaker.color === '#FFFFFF' ? ['#FF91BD', '#C0A5FF'][index % 2] : speaker.color })) })
           }
@@ -119,7 +129,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
       expectedJob.current = value.job_id
       requested.current = true
       setJob(value); setPollVersion(version => version + 1)
-    } catch (e) { setError(errorText(e)) }
+    } catch (e) { expectedJob.current = undefined; setError(errorText(e)); setPollVersion(version => version + 1) }
     finally { setBusy(false) }
   }
   const pause = async () => {
@@ -129,11 +139,29 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   }
   const [timingEdits, setTimingEdits] = useState<Record<string, { start: string; end: string }>>({})
   const timingEditsRef = useRef(timingEdits)
+  const timingLoaded = useRef(false)
+  const timingKey = `autoclip.studio.times.${projectId}.${draftId}`
   const changeTimingEdits = (next: typeof timingEdits) => {
     timingEditsRef.current = next
     setTimingEdits(next)
+    try { if (Object.keys(next).length) localStorage.setItem(timingKey, JSON.stringify(next)); else localStorage.removeItem(timingKey) } catch { /* Keep editable state in memory when local storage is unavailable. */ }
     onTimingPendingChange?.(Object.keys(next).length > 0)
   }
+  useEffect(() => {
+    if (!document || timingLoaded.current) return
+    timingLoaded.current = true
+    try {
+      const saved = JSON.parse(localStorage.getItem(timingKey) || 'null')
+      if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return
+      const ids = new Set(document.subtitles.map(cue => cue.id))
+      const next: typeof timingEdits = {}
+      for (const [id, pair] of Object.entries(saved).slice(0, 10000)) {
+        const value = pair as { start?: unknown; end?: unknown } | null
+        if (ids.has(id) && value && typeof value.start === 'string' && typeof value.end === 'string' && value.start.length <= 80 && value.end.length <= 80) next[id] = { start: value.start, end: value.end }
+      }
+      if (Object.keys(next).length) changeTimingEdits(next)
+    } catch { /* A malformed recovery record cannot replace the saved document. */ }
+  }, [document?.subtitles])
   const scope = JSON.stringify([projectId, draftId, scenes])
   const [retained, setRetained] = useState({ scope, ids: [] as string[] })
   const retainedIds = [...(retained.scope === scope ? retained.ids : []), ...Object.keys(timingEdits)]
@@ -147,9 +175,10 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const [editingCue, setEditingCue] = useState<string | null>(null)
   const [revealCue, setRevealCue] = useState<string | null>(null)
   const cueList = useRef<HTMLOListElement>(null)
+  const activeText = useRef<HTMLTextAreaElement>(null)
   useEffect(() => {
     if (!focusCue) return
-    const input = Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === focusCue)
+    const input = activeText.current?.dataset.cueId === focusCue ? activeText.current : Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === focusCue)
     if (input) { input.focus(); input.select(); input.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setFocusCue(null) }
   }, [focusCue, document])
   const visibleCues = useMemo(() => document ? speakerCuesForScenes(document.subtitles, scenes, retainedIds) : [],
@@ -178,6 +207,12 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const [replacement, setReplacement] = useState('')
   const [offset, setOffset] = useState('0')
   const [loop, setLoop] = useState(false)
+  const [activeCueId, setActiveCueId] = useState<string | null>(null)
+  const textCarets = useRef<Record<string, number>>({})
+  const [selectedRange, setSelectedRange] = useState<{ start: number; end: number } | null>(null)
+  const [addition, setAddition] = useState<{ start: number; end: number; speaker: string | null; layer: number } | null>(null)
+  const [additionText, setAdditionText] = useState('')
+  const [additionError, setAdditionError] = useState('')
   const [toolMessage, setToolMessage] = useState('')
   const [favorite, setFavorite] = useState<SpeakerCaptionLayout | null>(null)
   const [projectPeople, setProjectPeople] = useState<SpeakerDocument['speakers'] | null>(null)
@@ -185,7 +220,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const [historyVersion, setHistoryVersion] = useState(0)
   const readOnlyPending = Object.keys(timingEdits).length > 0
   const selectCue = (cue: SpeakerCue) => {
-    clearFilters(); setPage(Math.floor((cuePositions.get(cue.id) || 0) / pageSize)); setRevealCue(cue.id)
+    setActiveCueId(cue.id); clearFilters(); setPage(Math.floor((cuePositions.get(cue.id) || 0) / pageSize)); setRevealCue(cue.id)
     const target = speakerCueSeek(cue, scenes || [{ start: 0, end: (document?.duration_ms || 0) / 1000 }], selectedScene)
     if (target) onSeek(target.seconds, target.sceneIndex)
   }
@@ -210,7 +245,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
   const clearFilters = () => { setQuery(''); setSpeakerFilter(''); setIssuesOnly(false); setPage(0) }
   useEffect(() => {
     if (!revealCue) return
-    const input = Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === revealCue)
+    const input = activeText.current?.dataset.cueId === revealCue ? activeText.current : Array.from(cueList.current?.querySelectorAll('textarea') || []).find(input => input.dataset.cueId === revealCue)
     if (input) { input.focus({ preventScroll: true }); input.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); setRevealCue(null) }
   }, [revealCue, editorView, query, speakerFilter, issuesOnly, pageIndex])
   const processing = busy || ['queued', 'running'].includes(job.status)
@@ -257,6 +292,57 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
     cancelTiming(cue.id)
     patch({ subtitles: document.subtitles.map(c => c.id === cue.id ? { ...c, ...timing, assignment_reason: 'manual' } : c) })
   }
+  const editWindow = scenes?.[selectedScene] || scenes?.[0] || { start: 0, end: (document?.duration_ms || 0) / 1000 }
+  const activeCue = visibleCues.find(cue => cue.id === activeCueId) || playbackCue
+  const activate = (cue: SpeakerCue) => {
+    setActiveCueId(cue.id); clearFilters(); setPage(Math.floor((cuePositions.get(cue.id) || 0) / pageSize))
+  }
+  const commitTime = (id: string, start: number, end: number) => {
+    if (!document || readOnlyPending) return
+    const subtitles = retimeSubtitle(document.subtitles, id, Math.round(start * 1000), Math.round(end * 1000), editWindow)
+    if (!subtitles) { setToolMessage(t('调整后的字幕须位于当前镜头内，且至少持续 0.1 秒。')); return }
+    retain(id); patch({ subtitles })
+  }
+  const splitCue = (cue = activeCue) => {
+    if (!document || !cue || readOnlyPending) return
+    const id = crypto.randomUUID(), caret = textCarets.current[cue.id]
+    if (!caret || caret >= cue.text.length) {
+      setFocusCue(cue.id); setToolMessage(t('先在字幕正文中把光标放到两句之间，再把播放头停在换人位置。')); return
+    }
+    const at = Math.round(currentTime * 1000)
+    const subtitles = splitSubtitle(document.subtitles, cue.id, caret, at, id, null)
+    if (!subtitles || currentTime < editWindow.start || currentTime > editWindow.end) {
+      setToolMessage(t('播放头须位于这句字幕内部，拆分后每句至少 0.1 秒。')); return
+    }
+    clearFilters(); retain(id); patch({ subtitles }); setActiveCueId(id); setFocusCue(id)
+    setToolMessage(t('已拆成两句，请确认新句的说话人。'))
+  }
+  const mergeCue = (cue = activeCue) => {
+    if (!document || !cue || readOnlyPending) return
+    const next = adjacentSubtitle(document.subtitles, cue.id, editWindow)
+    const subtitles = next && mergeSubtitles(document.subtitles, cue.id, next.id)
+    if (!subtitles) { setToolMessage(t('只能合并当前镜头中同一人物、同一字幕行的相邻句。')); return }
+    patch({ subtitles }); setActiveCueId(cue.id); setFocusCue(cue.id)
+    setToolMessage(t('已合并相邻字幕，可撤销。'))
+  }
+  const openAddition = (overlap = false) => {
+    if (!document || readOnlyPending) return
+    const start = overlap && activeCue ? Math.max(editWindow.start, activeCue.start_ms / 1000)
+      : Math.max(editWindow.start, Math.min(selectedRange?.start ?? currentTime, editWindow.end - .1))
+    const end = overlap && activeCue ? Math.min(editWindow.end, activeCue.end_ms / 1000)
+      : Math.min(editWindow.end, selectedRange?.end ?? start + 2)
+    const speaker = overlap && activeCue ? document.speakers.find(person => person.speaker_id !== activeCue.speaker_id)?.speaker_id ?? null : activeCue?.speaker_id ?? null
+    setAddition({ start, end, speaker, layer: overlap && activeCue ? 1 - activeCue.layer : 0 })
+    setAdditionText(''); setAdditionError('')
+  }
+  const confirmAddition = () => {
+    if (!document || !addition || readOnlyPending) return
+    const id = crypto.randomUUID()
+    const subtitles = addSubtitleRange(document, editWindow, Math.round(addition.start * 1000), Math.round(addition.end * 1000), id,
+      additionText, addition.speaker, addition.layer)
+    if (!subtitles) { setAdditionError(t('请填写字幕正文，并确认有效的镜头内起止时间。')); return }
+    clearFilters(); retain(id); patch({ subtitles }); setActiveCueId(id); setFocusCue(id); setAddition(null)
+  }
   const addCue = (afterId?: string) => {
     if (!document) return
     const id = crypto.randomUUID()
@@ -282,7 +368,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           <div className="speaker-recognition-footer">
             <label className="speaker-check"><input type="checkbox" checked={reuse} onChange={e => setReuse(e.target.checked)}/><span>{t('复用已有字幕')}</span></label><span className="speaker-timing-hint">{t('识别设置沿用已保存配置，可临时调整。')}</span>
             <div className="speaker-buttons">{processing && <Btn size="sm" onClick={() => void pause()}>{t('暂停识别')}</Btn>}<Btn size="sm" disabled={processing} loading={processing} onClick={() => void recognize()}>{processing ? t('正在识别字幕…') : document ? t('重新识别说话人字幕') : t('识别说话人字幕')}</Btn>
-              {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing} onClick={() => onApply(recognized)}>{t('应用识别结果')}</Btn>}
+              {recognized && job.status === 'completed' && <Btn size="sm" disabled={processing || readOnlyPending} onClick={() => onApply(recognized)}>{t('应用识别结果')}</Btn>}
             </div>
           </div>
         </div>
@@ -347,6 +433,54 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         </section>
         <section className="speaker-section speaker-captions-section" hidden={editorView !== 'captions'}>
           <div className="speaker-section-head"><div><h3>{t('逐句校对')}<span className="speaker-small-count">{visibleCues.length}</span></h3><p>{t('仅显示当前切片的字幕；时间按原视频计。')}</p></div><Btn size="sm" onClick={() => patch({ subtitles: sortSpeakerCuesInScenes(document.subtitles, scenes, retainedIds) })}>{t('按时间排序')}</Btn></div>
+          <SubtitleTimeline projectId={projectId} document={document} scene={editWindow} time={currentTime} selectedId={activeCue?.id}
+            onSelect={activate} onSeek={seconds => onSeek(seconds, selectedScene)} onPause={onPause}
+            onCommit={commitTime} onRange={setSelectedRange} disabled={readOnlyPending}/>
+          {activeCue && <div className="subtitle-active-editor">
+            <div className="subtitle-active-heading"><strong>{t('当前字幕')}</strong>
+              <select className="ac-input" aria-label={t('当前字幕说话人')} value={activeCue.speaker_id || ''} onChange={event => patch({
+                subtitles: document.subtitles.map(cue => cue.id === activeCue.id ? { ...cue, speaker_id: event.target.value || null, assignment_reason: 'manual' } : cue) })}>
+                <option value="">{t('未知')}</option>{document.speakers.map(speaker => <option key={speaker.speaker_id} value={speaker.speaker_id}>{speaker.display_name || speaker.speaker_id}</option>)}</select>
+              <Btn size="sm" onClick={() => audition(activeCue)}>{t('试听当前句')}</Btn>
+            </div>
+            <textarea ref={activeText} data-cue-id={activeCue.id} className="ac-input" rows={2} maxLength={2000} aria-label={t('当前字幕正文')}
+              value={activeCue.text} onSelect={event => { textCarets.current[activeCue.id] = event.currentTarget.selectionStart }}
+              onKeyDown={event => {
+                if (event.nativeEvent?.isComposing) return
+                if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); audition(activeCue) }
+                if (event.altKey && ['ArrowUp','ArrowDown'].includes(event.key)) {
+                  event.preventDefault()
+                  const index = cuePositions.get(activeCue.id) || 0
+                  selectCue(visibleCues[Math.max(0, Math.min(visibleCues.length - 1, index + (event.key === 'ArrowUp' ? -1 : 1)))])
+                }
+              }} onChange={event => patch({ subtitles: document.subtitles.map(cue => cue.id === activeCue.id ? { ...cue, text: event.target.value, assignment_reason: 'manual' } : cue) })}/>
+          </div>}
+          <div className="subtitle-edit-actions">
+            <Btn size="sm" disabled={!activeCue || readOnlyPending} onClick={() => splitCue()}>{t('光标处拆句')}</Btn>
+            <Btn size="sm" disabled={!activeCue || readOnlyPending} onClick={() => mergeCue()}>{t('合并下一句')}</Btn>
+            {activeCue && !cueInsideWindow(activeCue, editWindow) && <Btn size="sm" disabled={readOnlyPending} onClick={() => commitTime(activeCue.id,
+              Math.max(editWindow.start, activeCue.start_ms / 1000), Math.min(editWindow.end, activeCue.end_ms / 1000))}>{t('裁到当前镜头')}</Btn>}
+            <Btn size="sm" disabled={readOnlyPending || document.subtitles.length >= 10000} onClick={() => openAddition()}>{t(selectedRange ? '选区补句' : '补一句')}</Btn>
+            <Btn size="sm" disabled={!activeCue || readOnlyPending || document.subtitles.length >= 10000} onClick={() => openAddition(true)}>{t('补重叠字幕')}</Btn>
+            {selectedRange && onAudition && <Btn size="sm" onClick={() => onAudition(selectedRange.start, selectedRange.end, selectedScene, loop)}>{t('试听选区')}</Btn>}
+          </div>
+          {activeCue && <details className="subtitle-time-details"><summary>{t('精确时间与微调')}</summary><div className="subtitle-exact-times" onBlur={event => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) applyTiming(activeCue)
+          }}>
+            {(['start','end'] as const).map(field => <label key={field}>{t(field === 'start' ? '原片起点' : '原片终点')}
+              <div className="subtitle-time-nudge"><Btn size="sm" aria-label={t(field === 'start' ? '起点提前 0.1 秒' : '终点提前 0.1 秒')} disabled={readOnlyPending}
+                onClick={() => commitTime(activeCue.id, activeCue.start_ms / 1000 - (field === 'start' ? .1 : 0), activeCue.end_ms / 1000 - (field === 'end' ? .1 : 0))}>−</Btn>
+                <input className="ac-input" aria-label={t(field === 'start' ? '时间轴起点' : '时间轴终点')}
+                  value={timingEdits[activeCue.id]?.[field] ?? clockTime((field === 'start' ? activeCue.start_ms : activeCue.end_ms) / 1000)}
+                  onChange={event => changeTimingEdits({ ...timingEditsRef.current, [activeCue.id]: {
+                    start: timingEditsRef.current[activeCue.id]?.start ?? String(activeCue.start_ms / 1000),
+                    end: timingEditsRef.current[activeCue.id]?.end ?? String(activeCue.end_ms / 1000), [field]: event.target.value } })}
+                  onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); applyTiming(activeCue) } if (event.key === 'Escape') cancelTiming(activeCue.id) }}/>
+                <Btn size="sm" aria-label={t(field === 'start' ? '起点延后 0.1 秒' : '终点延后 0.1 秒')} disabled={readOnlyPending}
+                  onClick={() => commitTime(activeCue.id, activeCue.start_ms / 1000 + (field === 'start' ? .1 : 0), activeCue.end_ms / 1000 + (field === 'end' ? .1 : 0))}>+</Btn></div>
+            </label>)}
+          </div></details>}
+          <p className="subtitle-repair-hint">{t('拆句时，文字光标决定分开哪几个字，播放头决定分开的时间。')}</p>
           <div className="speaker-editor-toolbar">
             <div className="speaker-toolbar-actions">
               <Btn size="sm" disabled={readOnlyPending || !history.current.past.length} onClick={() => travel(false)}>{t('撤销')}</Btn>
@@ -359,7 +493,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                 const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
                 selectCue(visibleCues[Math.min(visibleCues.length - 1, index + 1)])
               }}>{t('下一句')}</Btn>
-              <label className="speaker-check"><input type="checkbox" checked={loop} onChange={event => setLoop(event.target.checked)}/>{t('循环试听')}</label>
+              <label className="speaker-check"><input type="checkbox" checked={loop} onChange={event => { setLoop(event.target.checked); onLoopChange?.(event.target.checked) }}/>{t('循环试听')}</label>
             </div>
             <div className="speaker-search-row">
               <input className="ac-input speaker-search" type="search" aria-label={t('搜索字幕文字')} placeholder={t('搜索字幕文字')} value={query} onChange={event => setQuery(event.target.value)}/>
@@ -395,7 +529,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
             <p className="speaker-timing-hint">{t('替换作用于选中字幕；未选择时作用于当前切片。支持撤销。')}</p>
           </details>
           <p className="speaker-timing-hint">{t('时间支持秒或 分:秒；离开时间框或按 Enter 应用，Esc 取消。')} {t('Alt + 上下键切换句子，Ctrl + Enter 试听。')}</p>
-          <ol className="speaker-cues" ref={cueList}>
+          <details className="subtitle-all-cues"><summary>{t('展开字幕列表')} · {visibleCues.length}</summary><ol className="speaker-cues" ref={cueList}>
             {pageCues.map(cue => {
               const index = cuePositions.get(cue.id)!
               const update = (changes: Partial<typeof cue>) => patch({ subtitles: document.subtitles.map(c => c.id === cue.id ? { ...c, ...changes, assignment_reason: 'manual' } : c) })
@@ -405,7 +539,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
               const invalidTiming = !!timingEdits[cue.id] && !speakerCueTiming(timing.start, timing.end, document.duration_ms)
               const inputTiming = (field: 'start' | 'end', value: string) => changeTimingEdits({ ...timingEditsRef.current,
                 [cue.id]: { ...timing, [field]: value } })
-              return <li className={`speaker-cue${active ? ' speaker-cue--active' : ''}`} key={cue.id} onFocusCapture={() => setEditingCue(cue.id)} onBlurCapture={event => {
+              return <li className={`speaker-cue${active ? ' speaker-cue--active' : ''}${activeCue?.id === cue.id ? ' speaker-cue--selected' : ''}`} key={cue.id} onFocusCapture={() => { setEditingCue(cue.id); setActiveCueId(cue.id); const target = speakerCueSeek(cue, scenes || [editWindow], selectedScene); if (target && target.sceneIndex !== selectedScene) onSeek(target.seconds, target.sceneIndex) }} onBlurCapture={event => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setEditingCue(null)
               }} style={{ '--speaker-color': speaker?.color || 'var(--ac-muted)' } as CSSProperties}>
                 <div className="speaker-cue-head">
@@ -437,7 +571,8 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                 {invalidTiming && <p className="speaker-error" role="alert">{t('时间尚未应用：请填写有效起止时间，终点须晚于起点且不超过原片时长。')}</p>}
                 {!timingEdits[cue.id] && needsReview(cue) && <p className="speaker-error" role="alert">{t('字幕文字不能为空，结束时间必须晚于开始时间。')}</p>}
                 {!speakerCuesForScenes([cue], scenes).length && <p className="speaker-timing-hint">{t('此句已移出当前切片，仍保留在此处供修改。')}</p>}
-                <textarea className="speaker-cue-text ac-input" data-cue-id={cue.id} aria-label={`${t('字幕文本')} ${cue.id}`} rows={2} maxLength={2000} value={cue.text} onKeyDown={event => {
+                <textarea className="speaker-cue-text ac-input" data-cue-id={cue.id} aria-label={`${t('字幕文本')} ${cue.id}`} rows={2} maxLength={2000} value={cue.text} onSelect={event => { textCarets.current[cue.id] = event.currentTarget.selectionStart }} onKeyDown={event => {
+                  if (event.nativeEvent?.isComposing) return
                   if (event.ctrlKey && event.key === 'Enter') { event.preventDefault(); audition(cue) }
                   if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
                     event.preventDefault()
@@ -453,6 +588,8 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                     <select className="speaker-inline-select" aria-label={`${t('字幕行')} ${cue.id}`} value={cue.layer} onChange={e => update({ layer: Number(e.target.value) })}><option value={0}>{t('下行')}</option><option value={1}>{t('上行')}</option></select>
                   </div>
                   <div className="speaker-cue-actions">
+                    <Btn size="sm" variant="text" aria-label={`${t('拆句')} ${cue.id}`} disabled={readOnlyPending} onClick={() => splitCue(cue)}>{t('拆句')}</Btn>
+                    <Btn size="sm" variant="text" aria-label={`${t('合句')} ${cue.id}`} disabled={readOnlyPending} onClick={() => mergeCue(cue)}>{t('合句')}</Btn>
                     <Btn className="speaker-icon-button" variant="text" size="sm" title={t('上移')} aria-label={`${t('上移')} ${cue.id}`} disabled={index === 0} onClick={() => patch({ subtitles: moveSpeakerCueInScenes(document.subtitles, scenes, cue.id, -1, retainedIds) })}><Icon name="up"/></Btn>
                     <Btn className="speaker-icon-button" variant="text" size="sm" title={t('下移')} aria-label={`${t('下移')} ${cue.id}`} disabled={index === visibleCues.length - 1} onClick={() => patch({ subtitles: moveSpeakerCueInScenes(document.subtitles, scenes, cue.id, 1, retainedIds) })}><Icon name="down"/></Btn>
                     <Btn className="speaker-icon-button" variant="text" size="sm" title={t('在此后补句')} aria-label={`${t('在此后补句')} ${cue.id}`} disabled={document.subtitles.length >= 10000} onClick={() => addCue(cue.id)}><Icon name="plus"/></Btn>
@@ -465,7 +602,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
                 </div>
               </li>
             })}
-          </ol>
+          </ol></details>
           {pageCount > 1 && <div className="speaker-pagination">
             <Btn size="sm" disabled={pageIndex === 0} onClick={() => setPage(pageIndex - 1)}>{t('上一页')}</Btn>
             <span>{pageIndex + 1} / {pageCount}</span>
@@ -487,5 +624,15 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         </section>
       </>}
     </div>
+    <Dialog open={!!addition} title={t('补充字幕')} onClose={() => setAddition(null)}
+      footer={<div className="studio-actions"><Btn onClick={() => setAddition(null)}>{t('取消')}</Btn><Btn variant="cta" onClick={confirmAddition}>{t('加入当前草稿')}</Btn></div>}>
+      {addition && <div className="subtitle-add-dialog"><p className="subtitle-repair-hint">{clockTime(addition.start)} — {clockTime(addition.end)} · {t('原片时间')}</p>
+        <label>{t('字幕正文')}<textarea className="ac-input" autoFocus aria-label={t('补句正文')} value={additionText} maxLength={2000} onChange={event => setAdditionText(event.target.value)}/></label>
+        <label>{t('说话人')}<select className="ac-input" aria-label={t('补句说话人')} value={addition.speaker || ''} onChange={event => setAddition({ ...addition, speaker: event.target.value || null })}>
+          <option value="">{t('未知')}</option>{document?.speakers.map(speaker => <option key={speaker.speaker_id} value={speaker.speaker_id}>{speaker.display_name || speaker.speaker_id}</option>)}</select></label>
+        <label>{t('字幕行')}<select className="ac-input" aria-label={t('补句字幕行')} value={addition.layer} onChange={event => setAddition({ ...addition, layer: Number(event.target.value) })}><option value={0}>{t('下行')}</option><option value={1}>{t('上行')}</option></select></label>
+        {additionError && <p role="alert" className="speaker-error">{additionError}</p>}
+      </div>}
+    </Dialog>
   </details>
 }

@@ -1,5 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict')
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript')
+
+const timelineTools = (() => { const exports = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/features/studio/subtitleTimelineEditing.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports}); return exports })()
 const flush=()=>new Promise(resolve=>setImmediate(resolve))
 const doc={speakers:[{speaker_id:'spk_0',color:'#FF91BD'}],subtitles:[]}
 function mount(get){
@@ -7,9 +10,9 @@ function mount(get){
  const react={useMemo:fn=>fn(),useRef(value){const i=index++;return hooks[i]??(hooks[i]={current:value})},useState(value){index++;return [value,()=>{}]},
   useEffect(effect,deps){const i=index++,old=hooks[i];if(!old||deps.some((v,j)=>v!==old.deps[j])){old?.cleanup?.();hooks[i]={deps};pending.push(()=>{hooks[i].cleanup=effect()})}}}
  const exports={},jsx=(type,props)=>({type,props})
- const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},
+ const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog'},
   '../../services/api':{default:{get:(url,...args)=>url==='/studio/speaker-subtitles/status'?Promise.resolve({}):get(url,...args),post:async url=>{posts.push(url);return {status:'queued'}},defaults:{baseURL:'/api/v1'}}},
-  './api':{errorText:String},'./speakerSubtitleEditing':{speakerCuesForScenes:cues=>cues},'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}
+  './api':{errorText:String},'./speakerSubtitleEditing':{speakerCuesForScenes:cues=>cues},'./speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio/SpeakerSubtitles.tsx'),'utf8'),{
   compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{AbortController,exports,require:id=>mocks[id]||assert.fail(id),
   window:{setInterval:fn=>{const id=intervals.size+1;intervals.set(id,fn);return id},clearInterval:id=>intervals.delete(id)}})

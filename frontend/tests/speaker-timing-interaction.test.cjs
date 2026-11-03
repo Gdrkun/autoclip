@@ -1,5 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict')
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript')
+
+const timelineTools = (() => { const exports = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/features/studio/subtitleTimelineEditing.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports}); return exports })()
 const jsx=(type,props)=>({type,props})
 const nodes=n=>!n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(nodes):[n,...nodes(n.props?.children)]
 function load(file,mocks={}) {
@@ -16,9 +19,9 @@ function mount(options={}) {
  const hooks=[];let index=0,pending=false,changes=0
  const react={useMemo:fn=>fn(),useEffect(){},useRef:value=>{const i=index++;return hooks[i]??(hooks[i]={current:value})},
   useState:value=>{const i=index++;if(!(i in hooks))hooks[i]=value;return [hooks[i],next=>{hooks[i]=typeof next==='function'?next(hooks[i]):next}]}}
- const Component=load('SpeakerSubtitles.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},
+ const Component=load('SpeakerSubtitles.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog'},
   '../../services/api':{default:{defaults:{baseURL:'/api'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,
-  './speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}).default
+  './speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}).default
  const render=()=>{index=0;return nodes(Component({projectId:'p',draftId:'d',document,scenes:[{start:1,end:3}],currentTime:1.5,
   enabled:true,dirty:true,onChange:value=>{document=value;changes++},onTimingPendingChange:value=>{pending=value},onApply(){},onLayout(){},onEnabled(){},onSeek(){},...options.props}))}
  const named=label=>render().find(n=>n.props?.['aria-label']===label)

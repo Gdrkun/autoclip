@@ -1,6 +1,9 @@
 const { test } = require('node:test')
 const assert = require('node:assert/strict')
 const fs = require('node:fs'), path = require('node:path'), vm = require('node:vm'), ts = require('typescript')
+
+const timelineTools = (() => { const exports = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/features/studio/subtitleTimelineEditing.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports}); return exports })()
 const flush = () => new Promise(resolve => setImmediate(resolve))
 const jsx = (type, props) => ({ type, props })
 const nodes = n => !n || typeof n !== 'object' ? [] : Array.isArray(n) ? n.flatMap(nodes) : [n, ...nodes(n.props?.children)]
@@ -35,8 +38,8 @@ function mount(read, initialDocument = document()) {
     }, post: async (url, body) => { posts.push({ url, body }); return { status: 'queued', job_id: 'new' } },
   }
   const Component = load('SpeakerSubtitles.tsx', { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x },
-    '../../ui': { Btn: 'button' }, '../../services/api': { default: api }, './api': { errorText: String },
-    './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './CorrectionSuggestions': { default: 'corrections' } },
+    '../../ui': { Btn: 'button', Dialog:'dialog' }, '../../services/api': { default: api }, './api': { errorText: String },
+    './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools, './CorrectionSuggestions': { default: 'corrections' } },
   { window: { setInterval: fn => { const id = Math.random(); timers.set(id, fn); return id }, clearInterval: id => timers.delete(id) }, crypto: { randomUUID: () => 'new-cue' } }).default
   const render = () => {
     index = 0
@@ -109,4 +112,19 @@ test('caption preview reuses preparation until the document or scene changes', (
   assert.equal(enumerations, 1)
   const changed = { ...doc, subtitles: [cue('a', 2000)] }
   assert.equal(editing.activeSpeakerRows(changed, 2.2, 0, 10).length, 1)
+})
+
+test('a newer job in another window finishes polling without applying over current edits', async () => {
+  let state = { job: { status: 'completed', job_id: 'old' }, has_document: true, document: null }
+  const view = mount(async () => state)
+  view.render(); await flush()
+  view.render().find(node => node.type === 'button' && node.props.children === '重新识别说话人字幕').props.onClick()
+  await flush()
+  state = { job: { status: 'completed', job_id: 'another-window' }, has_document: true, document: document('other result') }
+  view.render(); await flush()
+  view.tick(); await flush()
+  assert.equal(view.applied.length, 0)
+  assert.equal(view.timers.size, 0)
+  assert.ok(view.render().some(node => node.props?.children === '识别任务已在其他窗口更新，当前修改已保留。'))
+  view.unmount()
 })

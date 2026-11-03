@@ -138,6 +138,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   // The preview transport runs on the clip's own timeline: 0 = scene start (or rendered clip start).
   const playBase = showRendered ? 0 : scene?.start ?? 0
   const playLength = showRendered ? renderedDuration : scene ? scene.end - scene.start : 0
+  const stopAudition = () => { auditionRange.current = null }
   const togglePlay = () => { const v = video.current; if (!v) return; if (v.paused) void v.play().catch(() => undefined); else v.pause() }
   const jobs = workspace.jobs.filter(j => j.draft_id === draftId)
   const exportState = draft ? draftExportState(draft, jobs) : undefined
@@ -251,15 +252,15 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         </div>
         <PlayerBar offset={Math.max(0, Math.min(currentTime - playBase, playLength))} length={playLength} playing={playing} muted={muted}
           onToggle={togglePlay} onMute={() => setMuted(m => !m)}
-          onSeek={offset => { const v = video.current; if (!v) return; v.currentTime = playBase + offset; setCurrentTime(v.currentTime) }} />
-      </div><div className="studio-row studio-preview-foot"><span className="studio-muted">{showRendered?t("实际渲染结果"):t("原片预览 · 成片取 {{range}} · 字幕、翻译以渲染结果为准", { range: scene ? `${fmtDuration(scene.start)}–${fmtDuration(scene.end)}` : "" })}</span>{previewUrl ? <Btn size="sm" onClick={() => setShowRendered(!showRendered)}>{showRendered?t("查看原片"):t("播放成片")}</Btn> : <Btn size="sm" disabled={!!active} onClick={render}>{active?t("正在渲染"):t("渲染预览")}</Btn>}</div></div>
+          onSeek={offset => { stopAudition(); const v = video.current; if (!v) return; v.currentTime = playBase + offset; setCurrentTime(v.currentTime) }} />
+      </div><div className="studio-row studio-preview-foot"><span className="studio-muted">{showRendered?t("实际渲染结果"):t("原片预览 · 成片取 {{range}} · 字幕、翻译以渲染结果为准", { range: scene ? `${fmtDuration(scene.start)}–${fmtDuration(scene.end)}` : "" })}</span>{previewUrl ? <Btn size="sm" onClick={() => { stopAudition(); setShowRendered(!showRendered) }}>{showRendered?t("查看原片"):t("播放成片")}</Btn> : <Btn size="sm" disabled={!!active} onClick={render}>{active?t("正在渲染"):t("渲染预览")}</Btn>}</div></div>
       {!showRendered && draft.subtitles && draft.speaker_subtitles && workspace.generation?.source_has_burned_subtitles && !draft.caption_mask &&
         <p className="studio-muted" role="status">{t('原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。')}</p>}
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
       {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
       <KnowledgeContext projectId={projectId}/>
       <ReactionEvidence key={`reactions:${projectId}:${draftId}`} projectId={projectId} scenes={draft.scenes} onSeek={(seconds,index)=>{
-        speakerSeek.current=seconds;setShowRendered(false)
+        stopAudition(); speakerSeek.current=seconds;setShowRendered(false)
         if(index!==selected)setSelected(index)
         else if(!showRendered&&video.current&&video.current.readyState>=1){video.current.currentTime=seconds;speakerSeek.current=null}
         setCurrentTime(seconds)
@@ -267,8 +268,10 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       <SpeakerSubtitles key={`${projectId}:${draftId}`} projectId={projectId} draftId={draftId} scenes={draft.scenes} selectedScene={selected}
         autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
         document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
-        onChange={value => patch({ speaker_subtitles: value, speaker_colors: true, language: 'source' })}
+        onChange={value => patch({ speaker_subtitles: value, language: 'source' })}
         onStyleEditingChange={setCaptionStyleEditing}
+        onPause={() => { stopAudition(); video.current?.pause() }}
+        onLoopChange={loop => { if (auditionRange.current) auditionRange.current.loop = loop }}
         onAudition={(start, end, sceneIndex, loop) => {
           auditionRange.current = { start, end, loop }; speakerSeek.current = start; setShowRendered(false)
           if (sceneIndex !== selected) setSelected(sceneIndex)
@@ -291,7 +294,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         }}/>
       <details className="studio-details studio-source-details"><summary>{t("调整镜头")}{' '}<span className="ac-mono">{draft.scenes.length}</span>{' '}{t("· 顺序与起止点")}</summary>
         <Btn size="sm" disabled={draft.scenes.length >= 30} onClick={() => setPicker('append')}>{t("追加镜头")}</Btn>
-        {draft.scenes.map((s,i)=><div className="studio-scene-row" key={s.id}><Btn size="sm" onClick={()=>{setSelected(i);setShowRendered(false)}}>{i+1}. {s.label}</Btn><label>{t("起点（秒）")}<input type="number" min={0} step={.1} value={s.start} onChange={e=>updateScene(i,{start:Number(e.target.value)})}/></label><label>{t("终点（秒）")}<input type="number" min={0} step={.1} value={s.end} onChange={e=>updateScene(i,{end:Number(e.target.value)})}/></label><div className="studio-actions"><Btn size="sm" onClick={() => setPicker(i)}>{t("替换")}</Btn><Btn size="sm" disabled={i===0} onClick={()=>patch({scenes:moveScene(draft,i,-1).scenes})}>{t("上移")}</Btn><Btn size="sm" disabled={i===draft.scenes.length-1} onClick={()=>patch({scenes:moveScene(draft,i,1).scenes})}>{t("下移")}</Btn><Btn size="sm" disabled={draft.scenes.length===1} onClick={()=>{patch({scenes:draft.scenes.filter((_,index)=>index!==i)});setSelected(0)}}>{t("移除")}</Btn></div></div>)}
+        {draft.scenes.map((s,i)=><div className="studio-scene-row" key={s.id}><Btn size="sm" onClick={()=>{stopAudition();setSelected(i);setShowRendered(false)}}>{i+1}. {s.label}</Btn><label>{t("起点（秒）")}<input type="number" min={0} step={.1} value={s.start} onChange={e=>updateScene(i,{start:Number(e.target.value)})}/></label><label>{t("终点（秒）")}<input type="number" min={0} step={.1} value={s.end} onChange={e=>updateScene(i,{end:Number(e.target.value)})}/></label><div className="studio-actions"><Btn size="sm" onClick={() => setPicker(i)}>{t("替换")}</Btn><Btn size="sm" disabled={i===0} onClick={()=>patch({scenes:moveScene(draft,i,-1).scenes})}>{t("上移")}</Btn><Btn size="sm" disabled={i===draft.scenes.length-1} onClick={()=>patch({scenes:moveScene(draft,i,1).scenes})}>{t("下移")}</Btn><Btn size="sm" disabled={draft.scenes.length===1} onClick={()=>{patch({scenes:draft.scenes.filter((_,index)=>index!==i)});setSelected(0)}}>{t("移除")}</Btn></div></div>)}
       </details>
       </section>
       <details className="studio-details studio-basic-settings"><summary>{t('成片设置')}</summary><DraftSettingsPanel draft={draft} patch={patch} scene={scene} currentTime={currentTime} onShot={setShot}

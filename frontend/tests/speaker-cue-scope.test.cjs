@@ -1,5 +1,8 @@
 const {test}=require('node:test'),assert=require('node:assert/strict')
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),ts=require('typescript')
+
+const timelineTools = (() => { const exports = {}; vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,
+  '../src/features/studio/subtitleTimelineEditing.ts'), 'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText, {exports}); return exports })()
 function load(name,mocks={}){const exports={};vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio',name),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{AbortController,exports,require:id=>mocks[id]||assert.fail(id),crypto:{randomUUID:()=> 'added'}});return exports}
 const editing=load('speakerSubtitleEditing.ts')
 const cue=(id,start,end)=>({id,start_ms:start,end_ms:end,text:id,layer:0,speaker_id:'spk_0'})
@@ -7,7 +10,7 @@ const doc={schema_version:1,time_base:'clip',duration_ms:10000,speakers:[{speake
 const scenes=[{start:1,end:3},{start:6,end:7}]
 const ids=cues=>Array.from(cues,c=>c.id)
 const jsx=(type,props)=>({type,props})
-function component(document,windows,onChange){const C=load('SpeakerSubtitles.tsx',{react:{useMemo:fn=>fn(),useEffect(){},useRef:current=>({current}),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button'},'../../services/api':{default:{defaults:{baseURL:'/api/v1'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,'./speaker-subtitles.css':{},'./CorrectionSuggestions':{default:'corrections'}}).default;return C({projectId:'p',draftId:'d',document,scenes:windows,enabled:true,dirty:true,currentTime:2.9,onChange,onApply(){},onLayout(){},onEnabled(){},onSeek(){}})}
+function component(document,windows,onChange){const C=load('SpeakerSubtitles.tsx',{react:{useMemo:fn=>fn(),useEffect(){},useRef:current=>({current}),useState:v=>[v,()=>{}]},'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog'},'../../services/api':{default:{defaults:{baseURL:'/api/v1'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,'./speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}).default;return C({projectId:'p',draftId:'d',document,scenes:windows,enabled:true,dirty:true,currentTime:2.9,onChange,onApply(){},onLayout(){},onEnabled(){},onSeek(){}})}
 function nodes(n){return !n||typeof n!=='object'?[]:Array.isArray(n)?n.flatMap(nodes):[n,...nodes(n.props?.children)]}
 
 test('an invalid end time stays editable in its scene and shows a validation warning',()=>{
@@ -26,8 +29,8 @@ test('an invalid end time stays editable in its scene and shows a validation war
 
 test('two clip editors show only intersecting cues from a shared source transcript',()=>{
  const a=nodes(component(doc,[scenes[0]],()=>{})),b=nodes(component(doc,[scenes[1]],()=>{}))
- assert.deepEqual(a.filter(n=>n.type==='textarea').map(n=>n.props.value),['a','edge'])
- assert.deepEqual(b.filter(n=>n.type==='textarea').map(n=>n.props.value),['b'])
+ assert.deepEqual(a.filter(n=>n.type==='textarea'&&n.props?.className==='speaker-cue-text ac-input').map(n=>n.props.value),['a','edge'])
+ assert.deepEqual(b.filter(n=>n.type==='textarea'&&n.props?.className==='speaker-cue-text ac-input').map(n=>n.props.value),['b'])
  let changed
  const tree=nodes(component(doc,[scenes[0]],value=>{changed=value}))
  tree.find(n=>n.props?.['aria-label']==='字幕文本 a').props.onChange({target:{value:'Only this draft'}})
