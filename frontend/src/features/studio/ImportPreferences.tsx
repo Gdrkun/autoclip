@@ -12,6 +12,9 @@ export default function ImportPreferences({value, onChange, hideGoal=false}: {va
     {!hideGoal&&<Row label={t("制作方式")}>
       <Select aria-label={t("制作方式")} size="small" style={{width:180}} value={value.goal} options={Object.entries(goalLabels).map(([key,label])=>({value:key,label:t(label)}))} onChange={goal=>patch({goal:goal as ImportOptions['goal']})} />
     </Row>}
+    <Row label={t('优先生成数量')} hint={t('每个平台先生成少量成片，其余候选按需生成。')}>
+      <Select aria-label={t('优先生成数量')} size="small" style={{width:180}} value={value.auto_render_limit || 3} options={[1,3,10].map(count => ({value:count,label:t('每个平台 {{count}} 条',{count})}))} onChange={auto_render_limit=>patch({auto_render_limit:auto_render_limit as 1|3|10})}/>
+    </Row>
     <Row label={t("文字语言")}>
       <Select aria-label={t("文字语言")} size="small" style={{width:180}} value={value.language} options={languages.map(l=>({value:l.value,label:l.value==='source'?t("沿用素材语言（推荐）"):l.label}))} onChange={language=>patch({language:language as ImportOptions['language']})} />
     </Row>

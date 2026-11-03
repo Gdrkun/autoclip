@@ -309,6 +309,7 @@ class ImportOptions(BaseModel):
     reaction_budget: int = Field(default=8, ge=1, le=12, exclude_if=lambda value: value == 8)
     platforms: list[str] = Field(default_factory=lambda: ['douyin'], min_length=1, max_length=8)
     auto_start: bool = False
+    auto_render_limit: Literal[1, 3, 10] = Field(default=10, exclude_if=lambda value: value == 10)
     portrait_style: Literal['auto', 'interview', 'podcast'] = 'auto'
     html_template: Literal['editorial', 'street', 'classic'] | None = None
     recommended_template: Literal['editorial', 'street', 'classic'] | None = None

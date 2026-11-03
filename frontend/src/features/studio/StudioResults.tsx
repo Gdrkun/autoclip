@@ -58,6 +58,15 @@ export default function StudioResults({ project, children, onCreateCollection, o
         onEdit={()=>navigate(`/project/${project.id}/studio/${d.id}`)} onExport={()=>setExporting(d)} onHistory={()=>setHistory(true)} /><SelectionFeedback projectId={project.id} draftId={d.id}/></div>)}{loaded && !automatic && children}</div>
       {!loading&&!error&&!workspace.drafts.length&&!project.clips?.length&&!project.collections?.length&&workspace.analysis?.status!=='running'&&<div className="ac-empty"><b>{t("暂时没有可用成片")}</b>{managed?t("可以重试，或修改制作方案。"):t("可调整最低评分后重试内容处理。")}</div>}
     </Section>}
+    {!!Object.keys(workspace.timings || {}).length && <details className="studio-timings">
+      <summary>{t('处理耗时明细')}</summary><p className="studio-muted">{t('项目累计耗时，包含重试；部分阶段互相包含，不可直接相加。')}</p>
+      <dl>{Object.entries(workspace.timings || {}).map(([stage, seconds]) => <div key={stage}>
+        <dt>{t(({ download:'下载素材', transcribe:'字幕转写', speaker_subtitles:'说话人字幕', audio_extract:'提取音轨',
+          speaker_inference:'声纹与转写推理', audio_inference:'音频推理', reaction_scan:'画面与声音初筛', reaction_review:'连续画面复核',
+          clip_finder:'AI 选片', boundaries:'边界精修', framing:'人物取景', packaging:'成片包装', post_copy:'发布文案', render:'渲染成片', ai_cover:'AI 封面' } as Record<string,string>)[stage] || stage)}</dt>
+        <dd>{Math.floor(seconds / 60)}:{String(Math.round(seconds) % 60).padStart(2,'0')}</dd>
+      </div>)}</dl>
+    </details>}
     {actionError&&<p className="studio-error" role="alert">{actionError}</p>}
     <details className="studio-details studio-source-details"><summary>{visual?t("高光片段"):t("来源片段")} <span className="ac-mono">{workspace.events.length+(project.clips?.length||0)}</span>{t("· 需要换镜头时再选")}</summary>
       {workspace.analysis?.coverage && <p className="studio-muted">{workspace.analysis.coverage.note} {t('全片初筛采样间隔约 {{seconds}} 秒。', { seconds: workspace.analysis.coverage.sample_interval.toFixed(1) })}</p>}

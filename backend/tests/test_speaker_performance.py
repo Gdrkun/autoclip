@@ -110,12 +110,62 @@ def test_timeout_stops_worker_and_leaves_no_partial_result(tmp_path):
     assert session.process.poll() is not None and not (tmp_path / 'result.json').exists()
 
 
+def test_automatic_render_limit_keeps_unselected_candidates():
+    from backend.services.studio.jobs import _automatic_drafts, SCORE_KEY
+    from backend.services.studio.models import ImportOptions
+    rows = [{'id': str(index), SCORE_KEY: index} for index in range(15)]
+    assert len(_automatic_drafts(rows, 3)) == 3 and _automatic_drafts(rows, 1) == {'14'}
+    visual = [{'id': 'v1'}, {'id': 'v2'}, {'id': 'v3'}, {'id': 'v4'}]
+    assert _automatic_drafts(visual, 1) == {'v1'}
+    assert _automatic_drafts(visual, 3) == {'v1', 'v2', 'v3'}
+    assert len(rows) == 15 and ImportOptions().auto_render_limit == 10
+    assert 'auto_render_limit' not in ImportOptions().model_dump()
+    for invalid in (0, 2, 11):
+        with pytest.raises(ValueError):
+            ImportOptions(auto_render_limit=invalid)
 
 
+def test_lightweight_status_does_not_parse_full_transcript(tmp_path, monkeypatch):
+    from backend.api.v1 import studio
+    from backend.services import speaker_integration as integration
+    target = tmp_path / 'speaker_subtitles.json'
+    target.write_text('large document is deliberately not parsed')
+    monkeypatch.setattr(studio, 'project_or_404', lambda *args: None)
+    monkeypatch.setattr(integration, 'sidecar', lambda _: target)
+    monkeypatch.setattr(integration, 'job_state', lambda _: {'status': 'running', 'job_id': 'new'})
+    monkeypatch.setattr(integration, 'load_document', lambda _: pytest.fail('lightweight poll must not load subtitles'))
+    result = studio.speaker_subtitle_state('fixture', db=None, include_document=False)
+    assert result == {'job': {'status': 'running', 'job_id': 'new'}, 'has_document': True, 'document': None}
 
 
+def test_editor_defaults_follow_saved_local_transcription(monkeypatch):
+    from backend.api.v1 import studio
+    from backend.services import ai_model_settings, speaker_integration
+    monkeypatch.setattr(speaker_integration, 'status', lambda: {'ready': True})
+    monkeypatch.setattr(ai_model_settings, 'load', lambda: SimpleNamespace(transcription=SimpleNamespace(provider='sensevoice_local', initial_prompt='names')))
+    assert studio.speaker_runtime_status()['defaults'] == {'backend': 'sensevoice', 'prompt': 'names'}
 
 
+def test_nearby_frames_are_decoded_in_one_real_ffmpeg_process(tmp_path, monkeypatch):
+    from backend.services.studio import intelligence
+    from backend.utils.ffmpeg_utils import get_ffmpeg_path
+    from backend.core import project_cancellation
+    video = tmp_path / 'source.mp4'
+    subprocess.run([get_ffmpeg_path(), '-nostdin', '-v', 'error', '-f', 'lavfi', '-i',
+                    'testsrc2=size=96x54:rate=10:duration=3', '-c:v', 'libx264', '-y', str(video)], check=True, timeout=30)
+    frames = tmp_path / 'frames'
+    frames.mkdir()
+    original, calls = project_cancellation.run, []
+
+    def run(command, **kwargs):
+        if '%d.jpg' in str(command[-1]):
+            calls.append(command)
+        return original(command, **kwargs)
+
+    monkeypatch.setattr(project_cancellation, 'run', run)
+    content = intelligence.sample(video, [.1, .5, 1.1, 1.7], frames)
+    assert len(calls) == 1 and len([row for row in content if row['type'] == 'image_url']) == 4
+    assert [row['text'] for row in content if row['type'] == 'text'] == [f'原片时间 {at:.2f} 秒' for at in [.1, .5, 1.1, 1.7]]
 
 
 def test_hour_voice_cache_survives_transcript_prompt_and_asr_choice_changes(tmp_path, monkeypatch):

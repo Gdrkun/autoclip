@@ -167,8 +167,11 @@ def process_chunks(video, media, folder, key, infer, validate, on_progress=None,
                     on_progress(part['index'], len(parts), reused)
                 with tempfile.TemporaryDirectory(prefix='work-', dir=get_temp_directory()) as temp:
                     audio = Path(temp) / 'audio.wav'
-                    extract(video, audio, part, media)
-                    value = validate(infer(audio, Path(temp), part), part)
+                    from backend.core.llm_usage import timed
+                    with timed('audio_extract'):
+                        extract(video, audio, part, media)
+                    with timed('speaker_inference' if 'speaker' in folder.parts else 'audio_inference'):
+                        value = validate(infer(audio, Path(temp), part), part)
                     checkpoint()
                     atomic_json(record, {'identity': key, 'part': part, 'result': value})
             else:

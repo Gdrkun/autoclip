@@ -1,14 +1,15 @@
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from 'antd'
-import HomePage from './pages/HomePage'
-import ProjectDetailPage from './pages/ProjectDetailPage'
-import PublishClipPage from './pages/PublishClipPage'
-import PublishListPage from './pages/PublishListPage'
-import PublishWeekPage from './pages/PublishWeekPage'
-import ImportReview from './features/studio/ImportReview'
-import StudioEditor from './features/studio/StudioEditor'
-import SettingsPage from './pages/SettingsPage'
+import { t } from './i18n'
+const HomePage = lazy(() => import('./pages/HomePage'))
+const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
+const PublishClipPage = lazy(() => import('./pages/PublishClipPage'))
+const PublishListPage = lazy(() => import('./pages/PublishListPage'))
+const PublishWeekPage = lazy(() => import('./pages/PublishWeekPage'))
+const ImportReview = lazy(() => import('./features/studio/ImportReview'))
+const StudioEditor = lazy(() => import('./features/studio/StudioEditor'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 import Header from './components/Header'
 import { UpdateProvider } from './desktop/UpdatePrompt'
 import { trackPageview } from './analytics/posthog'
@@ -34,7 +35,7 @@ function App() {
       <Layout>
         <Header />
         <Content>
-          <Routes>
+          <Suspense fallback={<div className="ac-page" role="status">{t('加载中…')}</div>}><Routes>
             <Route path="/" element={<HomePage />} />
             <Route path="/import/:id" element={<ImportReview />} />
             <Route path="/project/:id/studio/:draftId" element={<StudioEditor />} />
@@ -43,7 +44,7 @@ function App() {
             <Route path="/project/:id/publish" element={<PublishListPage />} />
             <Route path="/project/:id" element={<ProjectDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-          </Routes>
+          </Routes></Suspense>
         </Content>
       </Layout>
     </UpdateProvider>

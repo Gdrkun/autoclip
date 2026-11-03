@@ -1938,5 +1938,19 @@
   "取播放位置为终点": "Usar posição como fim",
   "应用时间": "Aplicar tempos",
   "取消时间修改": "Cancelar edição de tempo",
-  "没有符合筛选条件的字幕。": "Nenhuma legenda corresponde aos filtros."
+  "没有符合筛选条件的字幕。": "Nenhuma legenda corresponde aos filtros.",
+  "优先生成数量": "Quantidade inicial a gerar",
+  "每个平台先生成少量成片，其余候选按需生成。": "Gere primeiro poucos clipes por plataforma; os demais ficam sob demanda.",
+  "每个平台 {{count}} 条": "{{count}} por plataforma",
+  "处理耗时明细": "Detalhes do tempo de processamento",
+  "项目累计耗时，包含重试；部分阶段互相包含，不可直接相加。": "Tempo acumulado, incluindo tentativas. Algumas etapas se sobrepõem e não devem ser somadas.",
+  "提取音轨": "Extrair áudio",
+  "声纹与转写推理": "Inferência de voz e transcrição",
+  "音频推理": "Inferência de áudio",
+  "画面与声音初筛": "Análise inicial de imagem e som",
+  "连续画面复核": "Revisão de sequências",
+  "AI 选片": "Seleção de clipes por IA",
+  "边界精修": "Ajuste de limites",
+  "人物取景": "Enquadramento do falante",
+  "成片包装": "Estilização do clipe"
 }

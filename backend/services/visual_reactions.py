@@ -170,8 +170,10 @@ def analyze(project_id, video, srt=None, progress=None):
                 progress('scan', 0, 1)
             scan_root = root.parent / ('scan-' + result.fingerprint)
             from backend.services.studio.audio import has_audio
-            clues = reaction_scan.scan(video, result.duration, scan_root, audio=has_audio(video),
-                                       progress=lambda done, total: progress('scan', done, total) if progress else None)
+            from backend.core.llm_usage import timed
+            with timed('reaction_scan'):
+                clues = reaction_scan.scan(video, result.duration, scan_root, audio=has_audio(video),
+                                           progress=lambda done, total: progress('scan', done, total) if progress else None)
             windows = reaction_scan.candidate_windows(clues, result.duration, budget, rows)
             for window in windows:
                 cancellation.checkpoint(project_id)
@@ -186,7 +188,8 @@ def analyze(project_id, video, srt=None, progress=None):
                         if not all((folder/f'{index}.jpg').is_file() for index in range(len(response['actual_times']))):
                             raise ValueError('Missing frame cache')
                     except (OSError, ValueError, KeyError, TypeError):
-                        response = _request(video, window, folder, rows, clues, config.get('instruction', ''))
+                        with timed('reaction_review'):
+                            response = _request(video, window, folder, rows, clues, config.get('instruction', ''))
                         events = validate_events(response['raw'], window, response['actual_times'])
                         atomic_json(cache, response)
                     result.events.extend(event for event in events if not any(

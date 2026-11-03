@@ -154,7 +154,14 @@ class SpeakerRequest(BaseModel):
 @router.get('/speaker-subtitles/status')
 def speaker_runtime_status():
     from backend.services.speaker_integration import status
-    return status()
+    from backend.services.ai_model_settings import load
+    settings = load()
+    selection = settings.transcription if settings else None
+    defaults = {'backend': 'whisper', 'prompt': ''}
+    if selection and selection.provider in ('whisper_local', 'sensevoice_local'):
+        defaults = {'backend': 'whisper' if selection.provider == 'whisper_local' else 'sensevoice',
+                    'prompt': selection.initial_prompt}
+    return {**status(), 'defaults': defaults}
 
 
 @router.post('/{project_id}/speaker-subtitles')
@@ -196,11 +203,16 @@ def pause_audio_processing(project_id: str, db: Session = Depends(get_db)):
 
 
 @router.get('/{project_id}/speaker-subtitles')
-def speaker_subtitle_state(project_id: str, db: Session = Depends(get_db)):
-    from backend.services.speaker_integration import job_state, load_document
+def speaker_subtitle_state(project_id: str, db: Session = Depends(get_db), include_document: bool = True):
+    from backend.services.speaker_integration import job_state, load_document, sidecar
     project_or_404(project_id, db)
-    document = call(load_document, project_id)
-    return {'job': call(job_state, project_id), 'document': document.model_dump() if document else None}
+    job = call(job_state, project_id)
+    document = call(load_document, project_id) if include_document else None
+    latest = call(job_state, project_id)
+    if latest.get('job_id') != job.get('job_id') or latest.get('status') != job.get('status'):
+        document = None  # A recognition that changed while reading cannot publish an older result.
+    return {'job': latest, 'has_document': sidecar(project_id).is_file(),
+            'document': document.model_dump() if document else None}
 
 
 @router.get('/{project_id}/drafts/{draft_id}/speaker-subtitles.ass')
@@ -308,6 +320,7 @@ async def import_visual(
     detect_singing: bool = Form(False),
     visual_reactions: bool = Form(False),
     reaction_budget: int = Form(8, ge=1, le=12),
+    auto_render_limit: Literal[1, 3, 10] = Form(10),
     platforms: list[str] = Form(['douyin']),
     auto_start: bool = Form(False),
     portrait_style: Literal['auto', 'interview', 'podcast'] = Form('auto'),
@@ -348,7 +361,7 @@ async def import_visual(
             await subtitle.close()
     prefs = ImportOptions(
         goal=goal, language=language, aspect=aspect, duration=duration, instruction=instruction, background_query=background_query, detect_singing=detect_singing,
-        visual_reactions=visual_reactions, reaction_budget=reaction_budget,
+        visual_reactions=visual_reactions, reaction_budget=reaction_budget, auto_render_limit=auto_render_limit,
         platforms=platforms, auto_start=auto_start, portrait_style=portrait_style, html_template=html_template,
         recommended_template=recommended_template,
         branding={'outro_enabled': brand_outro_enabled},
@@ -414,7 +427,8 @@ async def template_recommend(
 def workspace(project_id: str, db: Session = Depends(get_db)):
     project = project_or_404(project_id, db)
     data = call(store.read, project_id)
-    return {**data, 'material_origin': 'sample' if (project.processing_config or {}).get('example') else 'user', 'example_version': (project.processing_config or {}).get('example_version'), 'jobs': [{k: v for k, v in j.items() if k not in ('instance', 'snapshot')} for j in data['jobs']]}
+    from backend.core.llm_usage import timings
+    return {**data, 'timings': timings(project_id), 'material_origin': 'sample' if (project.processing_config or {}).get('example') else 'user', 'example_version': (project.processing_config or {}).get('example_version'), 'jobs': [{k: v for k, v in j.items() if k not in ('instance', 'snapshot')} for j in data['jobs']]}
 
 @router.get('/{project_id}/source-preview')
 def source_preview_status(project_id: str, db: Session = Depends(get_db)):

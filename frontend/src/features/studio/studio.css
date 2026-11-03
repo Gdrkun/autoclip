@@ -88,3 +88,9 @@
 .studio-readiness{display:flex;flex-direction:column;gap:10px;margin:16px 0 2px;padding:12px 14px;border:1px solid var(--ac-line);border-radius:12px;background:var(--ac-bg)}
 .studio-readiness-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .studio-readiness-row .ac-status{min-width:0;line-height:1.45}
+
+.studio-timings { margin:12px 0 20px; padding:12px 16px; border:1px solid var(--ac-line); border-radius:12px; font-size:12px; }
+.studio-timings summary { cursor:pointer; color:var(--ac-sub); }
+.studio-timings dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px 18px; margin-bottom:0; }
+.studio-timings dl > div { display:flex; justify-content:space-between; gap:8px; }
+.studio-timings dt { color:var(--ac-sub); }.studio-timings dd { margin:0; font-variant-numeric:tabular-nums; }

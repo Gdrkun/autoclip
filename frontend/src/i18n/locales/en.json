@@ -1938,5 +1938,19 @@
   "取播放位置为终点": "Use playhead as end",
   "应用时间": "Apply times",
   "取消时间修改": "Cancel time edits",
-  "没有符合筛选条件的字幕。": "No captions match these filters."
+  "没有符合筛选条件的字幕。": "No captions match these filters.",
+  "优先生成数量": "Initial render count",
+  "每个平台先生成少量成片，其余候选按需生成。": "Render a few clips per platform first; generate other candidates on demand.",
+  "每个平台 {{count}} 条": "{{count}} per platform",
+  "处理耗时明细": "Processing time breakdown",
+  "项目累计耗时，包含重试；部分阶段互相包含，不可直接相加。": "Cumulative project time, including retries. Some stages overlap and must not be added together.",
+  "提取音轨": "Extract audio",
+  "声纹与转写推理": "Voice and transcription inference",
+  "音频推理": "Audio inference",
+  "画面与声音初筛": "Picture and sound scan",
+  "连续画面复核": "Sequence review",
+  "AI 选片": "AI clip selection",
+  "边界精修": "Boundary refinement",
+  "人物取景": "Speaker framing",
+  "成片包装": "Clip styling"
 }

@@ -89,7 +89,7 @@ export interface OutputVariant {
 export interface PostCopy { title: string; description: string; tags: string[] }
 export interface GenerationState {
   requested_platforms: string[]; branding: { outro_enabled: boolean; outro_version: string }
-  auto_start: boolean; status: 'screening' | 'awaiting_confirmation' | 'production' | 'rendering' | 'completed' | 'partial' | 'failed'
+  auto_start: boolean; auto_render_limit?: 1 | 3 | 10; status: 'screening' | 'awaiting_confirmation' | 'production' | 'rendering' | 'completed' | 'partial' | 'failed'
   created_at: string; skipped?: { strategy_id: string; reason: string }[]; error?: string; completed_variant_count?: number
   html_template?: 'editorial' | 'street' | 'classic'
   recommended_template?: 'editorial' | 'street' | 'classic'
@@ -104,7 +104,7 @@ export interface PlatformStrategySummary {
 }
 
 export interface Workspace {
-  schema_version?: number; plan?: ImportPlan
+  schema_version?: number; plan?: ImportPlan; timings?: Record<string, number>
   drafts: Draft[]; events: Scene[]; jobs: RenderJob[]; output_variants?: OutputVariant[]; generation?: GenerationState
   analysis: null | { status: 'running' | 'awaiting_confirmation' | 'completed' | 'failed'; phase?: 'screening' | 'production' | 'rendering'; message?: string; percent?: number; error?: string; coverage?: { duration?:number; note: string; sample_interval: number }; outcome?: 'completed' | 'partial' | 'failed' }
 }
@@ -147,7 +147,7 @@ export function portraitDesign(draft: Draft): Draft {
 export interface ImportOptions {
   goal: 'auto' | Goal; language: Language; aspect: Draft['aspect'] | null
   duration: number | null; instruction: string; background_query?: string; detect_singing?: boolean
-  visual_reactions?: boolean; reaction_budget?: number
+  visual_reactions?: boolean; reaction_budget?: number; auto_render_limit?: 1 | 3 | 10
   portrait_style?: 'auto' | 'interview' | 'podcast'
   html_template?: 'editorial' | 'street' | 'classic'
 }
@@ -164,5 +164,5 @@ export interface ImportPlan {
   background_research?: import('./CharacterBackground').BackgroundReport
   overrides: ImportOptions
 }
-export const defaultImportOptions: ImportOptions = {goal:'auto', language:'source', aspect:null, duration:null, instruction:'', portrait_style:'auto'}
+export const defaultImportOptions: ImportOptions = { auto_render_limit: 3,goal:'auto', language:'source', aspect:null, duration:null, instruction:'', portrait_style:'auto'}
 export const goalLabels = {auto:'AI 自动匹配', content:'内容切片', highlight:'精彩高光', promo:'推广成片'} as const

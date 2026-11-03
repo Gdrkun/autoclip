@@ -204,9 +204,42 @@ def _sampling_bounds(video):
         raise VisionRequestError('missing_resource', '无法读取素材画面，请检查视频后重试；原素材已保留') from None
 
 
+def _batch_frames(video, times, folder, width):
+    """Decode nearby ordered samples in one pass; keep sparse seeks and tail repairs separate."""
+    from backend.core.project_cancellation import run
+    start = times[0]
+    threshold = '1000000000'
+    for index in reversed(range(len(times))):
+        threshold = f'if(eq(selected_n,{index}),{times[index] - start:.6f},{threshold})'
+    command = [get_ffmpeg_path(), '-nostdin', '-v', 'error', '-threads', '1', '-ss', str(start),
+               '-i', str(video), '-an', '-vf', f"select='gte(t,{threshold})',scale={width}:-2",
+               '-frames:v', str(len(times)), '-fps_mode', 'vfr', '-threads', '1', '-filter_threads', '1',
+               '-start_number', '0', '-y', str(folder / '%d.jpg')]
+    run(command, check=True, capture_output=True, timeout=60)
+    frames = [(timestamp, (folder / f'{index}.jpg').read_bytes()) for index, timestamp in enumerate(times)]
+    if any(not image for _, image in frames):
+        raise ValueError('Empty batch frame')
+    return frames
+
+
 def sample(video, times, folder, width=640, check_cancelled=None):
     last_seek, retry_step = _sampling_bounds(video)
     content = []
+    if (len(times) >= 4 and all(math.isfinite(at) and 0 <= at <= last_seek for at in times)
+            and all(a < b for a, b in zip(times, times[1:])) and times[-1] - times[0] <= 30):
+        if check_cancelled:
+            check_cancelled()
+        try:
+            # Remove old files so a partial decode cannot reuse frames from another attempt.
+            for index in range(len(times)):
+                (folder / f'{index}.jpg').unlink(missing_ok=True)
+            frames = _batch_frames(video, times, folder, width)
+            for timestamp, image in frames:
+                content.extend([{'type': 'text', 'text': f'原片时间 {timestamp:.2f} 秒'},
+                                {'type': 'image_url', 'image_url': {'url': 'data:image/jpeg;base64,' + base64.b64encode(image).decode()}}])
+            return content
+        except (OSError, ValueError, subprocess.SubprocessError):
+            pass  # Sparse/tail-compatible path below retains per-frame diagnostics and repair.
     for index, timestamp in enumerate(times):
         if check_cancelled:
             check_cancelled()

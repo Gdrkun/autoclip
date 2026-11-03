@@ -136,6 +136,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       }
       platforms.forEach(platform => body.append('platforms', platform))
       body.append('auto_start', 'true')
+      body.append('auto_render_limit', String(options.auto_render_limit || 3))
       body.append('portrait_style', options.portrait_style || 'auto')
       const portraitChosen = platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform))
       const styleKey = templatesOn && visualOn && portraitChosen ? (source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)) : null

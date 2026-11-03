@@ -492,7 +492,8 @@ def _prepare_speaker_captions(project_id, video):
                     completed_chunks=done, total_chunks=total, reused_chunks=reused)
         store.change(project_id, update)
     try:
-        return ensure_for_project(project_id, video, on_progress=progress)
+        with llm_usage.timed('speaker_subtitles'):
+            return ensure_for_project(project_id, video, on_progress=progress)
     finally:
         if changed:
             def restore(data):
@@ -1152,7 +1153,7 @@ def _auto_generate(project_id, plan):
         # can exclude the only valid YouTube long clip and leave nothing to render.
         automatic = {
             strategy_id: _automatic_drafts([base for base in base_drafts
-                if _eligible_for_platform(base, platform_strategy(strategy_id))])
+                if _eligible_for_platform(base, platform_strategy(strategy_id))], generation.get('auto_render_limit'))
             for strategy_id in platforms
         }
         from backend.services.studio.template_choice import html_candidate_ids, selected_template
@@ -1378,12 +1379,16 @@ def _score(clip):
         return 0.0
 
 
-def _automatic_drafts(base_drafts):
+def _automatic_drafts(base_drafts, limit=None):
     """Ids of the drafts rendered without asking: the highest-scored AUTO_RENDER_LIMIT.
 
     A two-hour talk yields 30+ clips; rendering all of them up front cost most of the run, while
     people publish a handful. Drafts without a score (visual highlights, at most a few) all render.
     """
+    if limit is not None:
+        # Explicit import choices cap every route, including unscored visual candidates.
+        ranked = sorted(base_drafts, key=lambda draft: draft.get(SCORE_KEY, float('-inf')), reverse=True)
+        return {draft['id'] for draft in ranked[:limit]}
     scored = [draft for draft in base_drafts if SCORE_KEY in draft]
     if len(scored) <= AUTO_RENDER_LIMIT:
         return {draft['id'] for draft in base_drafts}
@@ -1559,6 +1564,7 @@ def inspect_project(project_id, options, url=None, browser=None, *, producer=Non
             'requested_platforms': list(options.platforms),
             'branding': options.branding.model_dump(),
             'auto_start': options.auto_start,
+            **({'auto_render_limit': options.auto_render_limit} if options.auto_render_limit != AUTO_RENDER_LIMIT else {}),
             'portrait_style': options.portrait_style,
             **({'html_template': options.html_template} if getattr(options, 'html_template', None) else {}),
             **({'recommended_template': options.recommended_template} if getattr(options, 'recommended_template', None) else {}),
