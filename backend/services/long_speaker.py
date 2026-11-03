@@ -1,5 +1,4 @@
 """Long-video local transcription with global CAM++ identities and bounded audio memory."""
-import json
 import math
 from pathlib import Path
 
@@ -119,25 +118,27 @@ def execute(video, root, backend, prompt, subtitles=None, on_progress=None):
     files = [worker, services / 'long_speaker.py', services / 'long_audio.py', services / 'speaker_subtitles.py',
              services / 'speaker_whisper.py', services / 'sensevoice_alignment.py', models / 'campplus/config.yaml',
              models / 'campplus/campplus_cn_common.bin', models / 'campplus/configuration.json', models / 'fsmn-vad/model.pt']
-    if subtitles:
-        files.append(subtitles)
-    else:
+    # Voice-only chunks do not depend on transcript wording, ASR model or prompt.
+    # Re-associate the current transcript after loading the unchanged acoustic evidence.
+    options = {'mode': 'voices', 'chunk_ms': long_audio.CHUNK_MS}
+    if not subtitles:
         files.extend([asr / ('model.bin' if backend == 'whisper' else 'model.pt'), asr / 'config.json' if backend == 'whisper' else asr / 'config.yaml'])
-    key = long_audio.identity(video, {'backend': backend, 'prompt': prompt, 'reuse': bool(subtitles), 'chunk_ms': long_audio.CHUNK_MS}, files)
+        options.update(backend=backend, prompt=prompt, reuse=False)
+    key = long_audio.identity(video, options, files)
     folder = long_audio.cache_directory(video, key, 'speaker')
     python = root / 'venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     env = {k: v for k, v in os.environ.items() if not k.endswith(('_API_KEY', '_TOKEN')) and k not in ('SENTRY_DSN', 'PYTHONPATH')}
     env.update(PYTHONUTF8='1', PYTHONDONTWRITEBYTECODE='1', CUDA_VISIBLE_DEVICES='', HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1', MODELSCOPE_OFFLINE='1')
-    def infer(audio, temp, part):
-        output = temp / 'worker.json'
-        command = [str(python), '-I', str(worker), '--audio', str(audio), '--result', str(output),
-                   '--cam-model', str(models / 'campplus'), '--vad-model', str(models / 'fsmn-vad'),
-                   '--speakers', '2', '--threads', '4', '--language', 'auto', '--include-embeddings']
-        if not subtitles:
-            command += ['--asr-backend', backend, '--asr-model', str(asr), '--initial-prompt', prompt]
-        long_audio.run_child(command, env=env, log=folder / f"worker-{part['index']:05d}.log", timeout=1800)
-        return json.loads(output.read_text(encoding='utf-8'))
-    results = long_audio.process_chunks(video, media, folder, key, infer, validate_chunk, on_progress)
+    from backend.services.speaker_process import SpeakerProcess
+    command = [str(python), '-I', str(worker), '--session',
+               '--cam-model', str(models / 'campplus'), '--vad-model', str(models / 'fsmn-vad'),
+               '--speakers', '2', '--threads', '4', '--language', 'auto', '--include-embeddings']
+    if not subtitles:
+        command += ['--asr-backend', backend, '--asr-model', str(asr), '--initial-prompt', prompt]
+    with SpeakerProcess(command, env=env, log=folder / 'worker-session.log') as session:
+        def infer(audio, temp, part):
+            return session.infer(audio, temp / 'worker.json')
+        results = long_audio.process_chunks(video, media, folder, key, infer, validate_chunk, on_progress)
     existing = None
     if subtitles:
         from backend.utils.text_processor import TextProcessor

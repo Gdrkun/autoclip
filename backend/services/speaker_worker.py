@@ -61,6 +61,18 @@ def embedding_values(result):
     return value
 
 
+_engines = {}
+
+
+def model_engine(model, **options):
+    # This cache lives only inside one isolated worker. Every generate call gets fresh input state.
+    from funasr import AutoModel
+    key = (str(model), json.dumps(options, sort_keys=True))
+    if key not in _engines:
+        _engines[key] = AutoModel(model=str(model), **options)
+    return _engines[key]
+
+
 def infer(args):
     # Resolve only explicit directories; model aliases would trigger downloads.
     cam, vad = local_model(args.cam_model), local_model(args.vad_model)
@@ -75,8 +87,6 @@ def infer(args):
                                    vad_intervals, windows_to_turns, attach_punctuation)
     import numpy as np
     import torch
-    from funasr import AutoModel
-
     torch.set_num_threads(args.threads)
     with wave.open(str(args.audio), 'rb') as source:
         if (source.getnchannels(), source.getframerate(), source.getsampwidth()) != (1, 16000, 2):
@@ -89,17 +99,17 @@ def infer(args):
                    disable_pbar=True, trust_remote_code=False, log_level='ERROR')
     started = time.monotonic()
     with torch.inference_mode():
-        vad_engine = AutoModel(model=str(vad), **options)
+        vad_engine = model_engine(vad, **options)
         ranges = vad_intervals(vad_engine.generate(input=samples, cache={}, disable_pbar=True), duration_ms)
         windows = embedding_windows(ranges)
         if len(windows) > 400:
             raise ValueError('Too many windows for Phase 1; use a shorter clip')
         embeddings = []
         if windows:
-            cam_engine = AutoModel(model=str(cam), **options)
+            cam_engine = model_engine(cam, **options)
             for window in windows:
                 audio = samples[window['start_ms'] * 16:window['end_ms'] * 16]
-                embeddings.append(embedding_values(cam_engine.generate(input=audio, disable_pbar=True)))
+                embeddings.append(embedding_values(cam_engine.generate(input=audio, cache={}, disable_pbar=True)))
             del cam_engine
         labels = cluster_embeddings(embeddings, max_speakers=args.speakers, threshold=args.threshold)
         turns = windows_to_turns(windows, labels)
@@ -114,7 +124,7 @@ def infer(args):
         elif asr and ranges:
             from sensevoice_alignment import aligned_cues
             # Bound mixed speech/music decoding separately from CAM++ windows.
-            engine = AutoModel(model=str(asr), vad_model=str(vad),
+            engine = model_engine(asr, vad_model=str(vad),
                                vad_kwargs={'max_single_segment_time': ASR_SEGMENT_MS}, **options)
             raw = engine.generate(input=str(args.audio), cache={}, language=args.language,
                                   use_itn=True, output_timestamp=True, batch_size_s=30,
@@ -142,13 +152,16 @@ def infer(args):
                                        for name in ('funasr', 'torch', 'torchaudio', 'numpy')}}}
     if getattr(args, 'include_embeddings', False):
         result.update(windows=windows, embeddings=embeddings)
-    args.result.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+    pending = args.result.with_suffix('.pending')
+    pending.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+    os.replace(pending, args.result)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--audio', type=Path, required=True)
-    parser.add_argument('--result', type=Path, required=True)
+    parser.add_argument('--audio', type=Path)
+    parser.add_argument('--result', type=Path)
+    parser.add_argument('--session', action='store_true', help='Read chunk requests from stdin; reuse loaded models')
     parser.add_argument('--diagnostics', type=Path, help='Private raw ASR and VAD diagnostics')
     parser.add_argument('--cam-model', type=Path, required=True)
     parser.add_argument('--vad-model', type=Path, required=True)
@@ -160,7 +173,17 @@ def main():
     parser.add_argument('--speakers', type=int, choices=range(1, 9))
     parser.add_argument('--threshold', type=float, default=.25)
     parser.add_argument('--include-embeddings', action='store_true')
-    infer(parser.parse_args())
+    args = parser.parse_args()
+    if args.session:
+        import sys
+        for line in sys.stdin:
+            request = json.loads(line)
+            args.audio, args.result = Path(request['audio']), Path(request['result'])
+            infer(args)
+    else:
+        if not args.audio or not args.result:
+            parser.error('--audio and --result are required without --session')
+        infer(args)
 
 
 if __name__ == '__main__':

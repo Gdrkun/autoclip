@@ -92,7 +92,8 @@ def atomic_json(path, data):
         pending = Path(stream.name)
         json.dump(data, stream, ensure_ascii=False, allow_nan=False)
     try:
-        os.replace(pending, path)
+        from backend.core.atomic_files import replace_with_retry
+        replace_with_retry(pending, path)
     finally:
         pending.unlink(missing_ok=True)
 

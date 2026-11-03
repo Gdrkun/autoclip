@@ -1,5 +1,6 @@
 """Offline Whisper adapter used inside the isolated speaker worker."""
 import math
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -10,11 +11,16 @@ def local_model(path):
     return root
 
 
-def transcribe(samples, model_path, duration_ms, language, threads, prompt='', turns=()):
+@lru_cache(maxsize=2)
+def _model(model_path, threads):
     from faster_whisper import WhisperModel
+    return WhisperModel(str(local_model(model_path)), device='cpu', compute_type='int8',
+                        cpu_threads=threads, num_workers=1, local_files_only=True)
+
+
+def transcribe(samples, model_path, duration_ms, language, threads, prompt='', turns=()):
     from speaker_subtitles import Cue
-    model = WhisperModel(str(local_model(model_path)), device='cpu', compute_type='int8',
-                         cpu_threads=threads, num_workers=1, local_files_only=True)
+    model = _model(str(Path(model_path).resolve()), threads)
     segments, _ = model.transcribe(samples, language=None if language == 'auto' else language,
                                    beam_size=5, temperature=0, word_timestamps=True, vad_filter=False,
                                    condition_on_previous_text=False, initial_prompt=prompt or None,
