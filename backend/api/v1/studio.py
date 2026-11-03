@@ -66,6 +66,16 @@ def put_creator_library(body: creator_library.Library):
     return call(creator_library.save, body).model_dump()
 
 
+@router.post('/creator-library/changes', response_model=creator_library.Library)
+def merge_creator_library(body: creator_library.Changes):
+    try:
+        return creator_library.apply_changes(body)
+    except creator_library.MergeConflict as error:
+        raise HTTPException(409, detail={'code': 'creator_library_conflict',
+                                       'current': error.current.model_dump(),
+                                       'conflicts': error.conflicts}) from None
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from None
 
 
 from backend.services import creator_knowledge, creator_learning

@@ -4,8 +4,8 @@ const jsx=(type,props)=>({type,props})
 const nodes=value=>!value||typeof value!=='object'?[]:Array.isArray(value)?value.flatMap(nodes):[value,...nodes(value.props?.children)]
 function load(name,mocks={}){
  const exports={};const source=fs.readFileSync(path.join(__dirname,'../src/features/studio',name),'utf8')
- const modules={'react/jsx-runtime':{jsx,jsxs:jsx},react:{useState:v=>[v,()=>{}],useEffect(){}},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog',fmtDuration:x=>String(x)},'../../services/api':{default:{}},'./api':{errorText:e=>e.message},'./CreatorLibrary':{feedbackLabels:{humor:'搞笑'}},'./ReferenceLearning':{default:'learning'},'./creator-library.css':{},...mocks}
- vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,Map,Set,crypto:{randomUUID:()=> 'new-profile'},require:name=>modules[name]||assert.fail(name)})
+ const modules={'react/jsx-runtime':{jsx,jsxs:jsx},react:{useState:v=>[v,()=>{}],useEffect(){},useRef:current=>({current})},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog',fmtDuration:x=>String(x)},'../../services/api':{default:{}},'./api':{errorText:e=>e.message},'./CreatorLibrary':{feedbackLabels:{humor:'搞笑'}},'./ReferenceLearning':{default:'learning'},'./creator-library.css':{},...mocks}
+ vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,Map,Set,crypto:{randomUUID:()=> 'new-profile'},require:name=>name==='./creatorLibraryEditing'?load('creatorLibraryEditing.ts'):modules[name]||assert.fail(name)})
  return exports
 }
 test('vocabulary confirmation preserves timing, speakers and simultaneous captions and rejects stale text',()=>{

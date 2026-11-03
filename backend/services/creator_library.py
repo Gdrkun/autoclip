@@ -1,6 +1,7 @@
 """Local, user-editable character knowledge, vocabulary and selection feedback."""
 from contextlib import contextmanager
 from contextvars import ContextVar
+from datetime import datetime, timezone
 import hashlib
 import json
 import logging
@@ -25,6 +26,7 @@ class Profile(BaseModel):
     background: str = Field(default='', max_length=6000)
     memes: str = Field(default='', max_length=6000)
     sources: list[Reference] = Field(default_factory=list, max_length=8)
+    updated_at: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode='after')
     def names(self):
@@ -64,6 +66,7 @@ class Library(BaseModel):
     profiles: list[Profile] = Field(default_factory=list, max_length=100)
     terms: list[Term] = Field(default_factory=list, max_length=200)
     feedback: list[Feedback] = Field(default_factory=list, max_length=200)
+    updated_at: str | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @model_validator(mode='after')
     def unique(self):
@@ -102,11 +105,76 @@ def save(body):
         current = load()
         if body.revision != current.revision:
             raise ConflictError('知识库已被其他页面修改，请重新打开后再保存')
-        result = body.model_copy(update={'revision': current.revision + 1})
+        now = datetime.now(timezone.utc).isoformat()
+        previous = {profile.id: profile for profile in current.profiles}
+        profiles = []
+        for profile in body.profiles:
+            old = previous.get(profile.id)
+            changed = old is None or profile.model_dump(exclude={'updated_at'}) != old.model_dump(exclude={'updated_at'})
+            profiles.append(profile.model_copy(update={'updated_at': now if changed else old.updated_at}))
+        result = body.model_copy(update={'revision': current.revision + 1, 'updated_at': now, 'profiles': profiles})
         if path().exists():
             atomic_json(path().with_suffix('.backup.json'), current.model_dump())
         atomic_json(path(), result.model_dump())
         return result
+
+
+class Changes(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    base: Library
+    draft: Library
+
+
+class MergeConflict(ValueError):
+    def __init__(self, current, conflicts):
+        super().__init__('同一内容已在其他页面修改；你的修改已保留，请对照后合并')
+        self.current = current
+        self.conflicts = conflicts
+
+
+def apply_changes(body):
+    """Merge only edited fields; unrelated profiles, vocabulary and feedback survive."""
+    with _lock:
+        current = load()
+        if body.base.revision > current.revision:
+            raise ValueError('知识库版本无效，请重新加载')
+        conflicts = []
+
+        def choose(base, draft, latest, section, identity='', field=''):
+            if draft == base:
+                return latest
+            if latest == base or latest == draft:
+                return draft
+            conflicts.append({'section': section, 'id': identity, 'field': field})
+            return latest
+
+        def records(section):
+            versions = []
+            for library in (body.base, body.draft, current):
+                versions.append({item.id: item.model_dump(exclude={'updated_at'}) for item in getattr(library, section)})
+            before, edited, latest = versions
+            merged = []
+            for identity in dict.fromkeys([*latest, *edited, *before]):
+                old, local, saved = before.get(identity), edited.get(identity), latest.get(identity)
+                if old is not None and local is not None and saved is not None:
+                    result = {key: choose(old.get(key), local.get(key), saved.get(key), section, identity, key)
+                              for key in dict.fromkeys([*old, *local, *saved])}
+                else:
+                    result = choose(old, local, saved, section, identity)
+                if result is not None:
+                    merged.append(result)
+            return merged
+
+        value = current.model_dump()
+        value['profiles'] = records('profiles')
+        value['feedback'] = records('feedback')
+        value['terms'] = choose([term.model_dump() for term in body.base.terms],
+                                [term.model_dump() for term in body.draft.terms],
+                                [term.model_dump() for term in current.terms], 'terms')
+        if conflicts:
+            raise MergeConflict(current, conflicts)
+        result = Library.model_validate(value)
+        return save(result)
 
 
 def project_query(project_id):
