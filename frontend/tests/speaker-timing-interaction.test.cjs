@@ -21,7 +21,7 @@ function mount(options={}) {
   useState:value=>{const i=index++;if(!(i in hooks))hooks[i]=value;return [hooks[i],next=>{hooks[i]=typeof next==='function'?next(hooks[i]):next}]}}
  const Component=load('SpeakerSubtitles.tsx',{react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog'},
   '../../services/api':{default:{defaults:{baseURL:'/api'}}},'./api':{errorText:String},'./speakerSubtitleEditing':editing,
-  './speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}).default
+  './speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './SubtitleRepair': {default:'SubtitleRepair'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}).default
  const render=()=>{index=0;return nodes(Component({projectId:'p',draftId:'d',document,scenes:[{start:1,end:3}],currentTime:1.5,
   enabled:true,dirty:true,onChange:value=>{document=value;changes++},onTimingPendingChange:value=>{pending=value},onApply(){},onLayout(){},onEnabled(){},onSeek(){},...options.props}))}
  const named=label=>render().find(n=>n.props?.['aria-label']===label)

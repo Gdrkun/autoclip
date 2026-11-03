@@ -53,7 +53,7 @@ def visual_reaction_frame(project_id: str, run_id: str, window_id: int, index: i
     return FileResponse(call(visual_reactions.frame_path, project_id, run_id, window_id, index), media_type='image/jpeg')
 
 
-from backend.services import creator_library, singing_detection
+from backend.services import creator_library, singing_detection, subtitle_repair
 
 
 @router.get('/creator-library')
@@ -64,6 +64,8 @@ def get_creator_library():
 @router.put('/creator-library')
 def put_creator_library(body: creator_library.Library):
     return call(creator_library.save, body).model_dump()
+
+
 
 
 from backend.services import creator_knowledge, creator_learning
@@ -229,6 +231,24 @@ def subtitle_waveform(project_id: str, start: float = Query(ge=0, allow_inf_nan=
     project_or_404(project_id, db)
     from backend.services.subtitle_waveform import waveform
     return call(waveform, project_id, start, end, points)
+
+
+@router.post('/{project_id}/subtitle-repairs', response_model=subtitle_repair.State)
+def start_subtitle_repair(project_id: str, body: subtitle_repair.Request, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(subtitle_repair.start, project_id, body)
+
+
+@router.get('/{project_id}/subtitle-repairs/{job_id}', response_model=subtitle_repair.State)
+def get_subtitle_repair(project_id: str, job_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(subtitle_repair.state, project_id, job_id)
+
+
+@router.post('/{project_id}/subtitle-repairs/{job_id}/cancel', response_model=subtitle_repair.State)
+def cancel_subtitle_repair(project_id: str, job_id: str, db: Session = Depends(get_db)):
+    project_or_404(project_id, db)
+    return call(subtitle_repair.cancel, project_id, job_id)
 
 
 @router.get('/{project_id}/drafts/{draft_id}/speaker-subtitles.ass')

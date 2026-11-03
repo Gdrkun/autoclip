@@ -39,7 +39,7 @@ function mount(read, initialDocument = document()) {
   }
   const Component = load('SpeakerSubtitles.tsx', { react, 'react/jsx-runtime': { jsx, jsxs: jsx }, '../../i18n': { t: x => x },
     '../../ui': { Btn: 'button', Dialog:'dialog' }, '../../services/api': { default: api }, './api': { errorText: String },
-    './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools, './CorrectionSuggestions': { default: 'corrections' } },
+    './speakerSubtitleEditing': editing, './speaker-subtitles.css': {}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './SubtitleRepair': {default:'SubtitleRepair'}, './subtitleTimelineEditing':timelineTools, './CorrectionSuggestions': { default: 'corrections' } },
   { window: { setInterval: fn => { const id = Math.random(); timers.set(id, fn); return id }, clearInterval: id => timers.delete(id) }, crypto: { randomUUID: () => 'new-cue' } }).default
   const render = () => {
     index = 0

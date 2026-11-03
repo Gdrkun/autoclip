@@ -12,7 +12,7 @@ function mount(get){
  const exports={},jsx=(type,props)=>({type,props})
  const mocks={react,'react/jsx-runtime':{jsx,jsxs:jsx},'../../i18n':{t:x=>x},'../../ui':{Btn:'button',Dialog:'dialog'},
   '../../services/api':{default:{get:(url,...args)=>url==='/studio/speaker-subtitles/status'?Promise.resolve({}):get(url,...args),post:async url=>{posts.push(url);return {status:'queued'}},defaults:{baseURL:'/api/v1'}}},
-  './api':{errorText:String},'./speakerSubtitleEditing':{speakerCuesForScenes:cues=>cues},'./speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}
+  './api':{errorText:String},'./speakerSubtitleEditing':{speakerCuesForScenes:cues=>cues},'./speaker-subtitles.css':{}, './SubtitleTimeline': {default:'SubtitleTimeline'}, './SubtitleRepair': {default:'SubtitleRepair'}, './subtitleTimelineEditing':timelineTools,'./CorrectionSuggestions':{default:'corrections'}}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio/SpeakerSubtitles.tsx'),'utf8'),{
   compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{AbortController,exports,require:id=>mocks[id]||assert.fail(id),
   window:{setInterval:fn=>{const id=intervals.size+1;intervals.set(id,fn);return id},clearInterval:id=>intervals.delete(id)}})

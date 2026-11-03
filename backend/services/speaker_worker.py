@@ -75,7 +75,9 @@ def model_engine(model, **options):
 
 def infer(args):
     # Resolve only explicit directories; model aliases would trigger downloads.
-    cam, vad = local_model(args.cam_model), local_model(args.vad_model)
+    asr_only = getattr(args, 'asr_only', False)
+    cam = None if asr_only else local_model(args.cam_model)
+    vad = local_model(args.vad_model)
     from speaker_whisper import local_model as whisper_model
     asr = (whisper_model(args.asr_model) if args.asr_backend == 'whisper' else local_model(args.asr_model)) if args.asr_model else None
     os.environ.update(CUDA_VISIBLE_DEVICES='', HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1',
@@ -101,7 +103,7 @@ def infer(args):
     with torch.inference_mode():
         vad_engine = model_engine(vad, **options)
         ranges = vad_intervals(vad_engine.generate(input=samples, cache={}, disable_pbar=True), duration_ms)
-        windows = embedding_windows(ranges)
+        windows = [] if asr_only else embedding_windows(ranges)
         if len(windows) > 400:
             raise ValueError('Too many windows for Phase 1; use a shorter clip')
         embeddings = []
@@ -163,7 +165,8 @@ def main():
     parser.add_argument('--result', type=Path)
     parser.add_argument('--session', action='store_true', help='Read chunk requests from stdin; reuse loaded models')
     parser.add_argument('--diagnostics', type=Path, help='Private raw ASR and VAD diagnostics')
-    parser.add_argument('--cam-model', type=Path, required=True)
+    parser.add_argument('--cam-model', type=Path)
+    parser.add_argument('--asr-only', action='store_true', help='Transcribe only; do not infer local speaker identities')
     parser.add_argument('--vad-model', type=Path, required=True)
     parser.add_argument('--asr-model', type=Path)
     parser.add_argument('--asr-backend', choices=['sensevoice', 'whisper'], default='sensevoice')
@@ -174,6 +177,10 @@ def main():
     parser.add_argument('--threshold', type=float, default=.25)
     parser.add_argument('--include-embeddings', action='store_true')
     args = parser.parse_args()
+    if not args.asr_only and not args.cam_model:
+        parser.error('--cam-model is required unless --asr-only is set')
+    if args.asr_only and not args.asr_model:
+        parser.error('--asr-model is required with --asr-only')
     if args.session:
         import sys
         for line in sys.stdin:

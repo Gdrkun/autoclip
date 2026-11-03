@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { t } from '../../i18n'
 import { Btn, Dialog } from '../../ui'
 import SubtitleTimeline from './SubtitleTimeline'
+import SubtitleRepair from './SubtitleRepair'
 import { splitSubtitle, mergeSubtitles, retimeSubtitle, addSubtitleRange, adjacentSubtitle, cueInsideWindow, clockTime } from './subtitleTimelineEditing'
 import api from '../../services/api'
 import { errorText } from './api'
@@ -436,6 +437,9 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           <SubtitleTimeline projectId={projectId} document={document} scene={editWindow} time={currentTime} selectedId={activeCue?.id}
             onSelect={activate} onSeek={seconds => onSeek(seconds, selectedScene)} onPause={onPause}
             onCommit={commitTime} onRange={setSelectedRange} disabled={readOnlyPending}/>
+          <SubtitleRepair projectId={projectId} draftId={draftId} document={document} range={selectedRange} scene={editWindow}
+            backend={backend} prompt={prompt} disabled={readOnlyPending || processing} onApply={subtitles => patch({ subtitles })}
+            onAudition={onAudition ? (start, end) => onAudition(start, end, selectedScene, loop) : undefined}/>
           {activeCue && <div className="subtitle-active-editor">
             <div className="subtitle-active-heading"><strong>{t('当前字幕')}</strong>
               <select className="ac-input" aria-label={t('当前字幕说话人')} value={activeCue.speaker_id || ''} onChange={event => patch({

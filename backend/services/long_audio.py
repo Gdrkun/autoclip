@@ -1,5 +1,6 @@
 """Bounded audio chunks, durable checkpoints and cancellable local children. No ML imports."""
 from contextlib import contextmanager
+from contextvars import ContextVar
 import hashlib
 import json
 import math
@@ -13,6 +14,7 @@ import uuid
 CHUNK_MS = 180000
 OVERLAP_MS = 4000
 VERSION = 1
+_extra_checkpoint = ContextVar('audio_task_checkpoint', default=None)
 
 
 def probe(video):
@@ -97,6 +99,19 @@ def exclusive(folder):
 def checkpoint():
     from backend.core.project_cancellation import checkpoint as check, current
     check(current())
+    extra = _extra_checkpoint.get()
+    if extra is not None:
+        extra()
+
+
+@contextmanager
+def cancellation(check):
+    """Allow a short repair task to cancel its own children independently of a project."""
+    token = _extra_checkpoint.set(check)
+    try:
+        yield
+    finally:
+        _extra_checkpoint.reset(token)
 
 
 def run_child(command, *, env, log, timeout=1200):
