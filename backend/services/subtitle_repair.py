@@ -52,18 +52,31 @@ class Request(BaseModel):
     backend: Literal['whisper', 'sensevoice'] = 'whisper'
     prompt: str = Field(default='', max_length=500)
     source_version: str = Field(pattern=r'^[a-f0-9]{64}$')
+    operation: Literal['transcribe', 'align'] = Field(default='transcribe', exclude_if=lambda value: value == 'transcribe')
+    alignment_cues: list[Cue] = Field(default_factory=list, max_length=40, exclude_if=lambda value: not value)
 
     @model_validator(mode='after')
     def interval(self):
         if not .1 <= self.end - self.start <= 60:
             raise ValueError('请圈选 0.1 至 60 秒的音频')
+        if self.operation == 'align':
+            if self.backend != 'whisper' or self.end - self.start > 30 or not self.alignment_cues:
+                raise ValueError('自动对齐需要本地 Whisper，选区最多 30 秒')
+            ordered = sorted(self.alignment_cues, key=lambda cue: cue.start_ms)
+            if (len({cue.id for cue in ordered}) != len(ordered)
+                    or sum(len(cue.text) for cue in ordered) > 1000
+                    or any(cue.start_ms < round(self.start * 1000) or cue.end_ms > round(self.end * 1000) for cue in ordered)
+                    or any(left.end_ms > right.start_ms for left, right in zip(ordered, ordered[1:]))):
+                raise ValueError('请完整圈选待对齐字幕；重叠台词请逐句对齐')
+        elif self.alignment_cues:
+            raise ValueError('重新识别不接受校正文字对齐参数')
         return self
 
 
 class State(BaseModel):
     job_id: str
     status: Literal['queued', 'running', 'completed', 'failed', 'cancelled']
-    stage: Literal['queued', 'extracting', 'recognizing', 'completed', 'failed', 'cancelled']
+    stage: Literal['queued', 'extracting', 'recognizing', 'aligning', 'completed', 'failed', 'cancelled']
     start_ms: int
     end_ms: int
     source_version: str
@@ -71,6 +84,7 @@ class State(BaseModel):
     subtitles: list[Cue] = Field(default_factory=list)
     error: str = ''
     created_at: str
+    operation: Literal['transcribe', 'align'] = Field(default='transcribe', exclude_if=lambda value: value == 'transcribe')
 
 
 class Cancelled(Exception):
@@ -118,7 +132,10 @@ def start(project_id, request):
     python = root / 'venv' / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
     model = root / 'models' / ('whisper-medium' if request.backend == 'whisper' else 'sensevoice')
     weights = 'model.bin' if request.backend == 'whisper' else 'model.pt'
-    if not python.is_file() or not (model / weights).is_file() or not (root / 'models/fsmn-vad/model.pt').is_file():
+    if (not python.is_file() or not (model / weights).is_file()
+            or request.operation != 'align' and not (root / 'models/fsmn-vad/model.pt').is_file()):
+        if request.operation == 'align':
+            raise ValueError('自动对齐需要已准备的本地 Whisper，请先准备模型后重试')
         raise ValueError('所选本地转写模型未就绪，请在模型设置中准备后重试')
     signature = hashlib.sha256(request.model_dump_json().encode()).hexdigest()
     with _lock:
@@ -134,6 +151,8 @@ def start(project_id, request):
                      start_ms=round(request.start * 1000), end_ms=round(request.end * 1000),
                      source_version=identity, backend=request.backend, subtitles=[], error='',
                      created_at=datetime.now(timezone.utc).isoformat(), instance=_instance, signature=signature)
+        if request.operation == 'align':
+            value['operation'] = 'align'
         event = threading.Event()
         _active[project_id] = (request.request_id, event)
         try:
@@ -180,7 +199,8 @@ def _infer(audio, folder, request):
                TRANSFORMERS_OFFLINE='1', MODELSCOPE_OFFLINE='1', CUDA_VISIBLE_DEVICES='')
     weights = root / 'models' / ('whisper-medium/model.bin' if request.backend == 'whisper' else 'sensevoice/model.pt')
     vad = root / 'models/fsmn-vad/model.pt'
-    key = (tuple(command), tuple((file.stat().st_size, file.stat().st_mtime_ns) for file in (weights, vad)))
+    files = (weights,) if request.operation == 'align' else (weights, vad)
+    key = (tuple(command), tuple((file.stat().st_size, file.stat().st_mtime_ns) for file in files))
     with _engine_lock:
         if _engine is not None and _engine['key'] != key:
             _close_engine()
@@ -193,7 +213,12 @@ def _infer(audio, folder, request):
         if engine['timer']:
             engine['timer'].cancel()
         try:
-            value = engine['process'].infer(audio, result)
+            if request.operation == 'align':
+                supplied = folder / 'alignment.json'
+                supplied.write_text(json.dumps([cue.model_dump() for cue in sorted(request.alignment_cues, key=lambda cue: cue.start_ms)], ensure_ascii=False), encoding='utf-8')
+                value = engine['process'].infer(audio, result, options={'alignment': str(supplied)})
+            else:
+                value = engine['process'].infer(audio, result)
         except BaseException as error:
             _engine = None
             try:
@@ -238,18 +263,27 @@ def _run(project_id, video, request, value, event):
                 folder = Path(temporary)
                 audio = folder / 'selection.wav'
                 long_audio.extract(video, audio, {'start_ms': left, 'end_ms': right}, media)
-                progress('recognizing')
+                progress('aligning' if request.operation == 'align' else 'recognizing')
                 from backend.services.creator_library import asr_prompt, project_query
                 options = request.model_copy(update={'prompt': asr_prompt(request.prompt, query=project_query(project_id))})
                 raw = _infer(audio, folder, options)
+                originals = {cue.id: cue for cue in request.alignment_cues}
+                if request.operation == 'align' and (len(raw['subtitles']) != len(originals) or {cue['id'] for cue in raw['subtitles']} != set(originals)):
+                    raise ValueError('对齐结果未完整保留校正字幕')
                 subtitles = []
                 for index, item in enumerate(raw['subtitles']):
                     cue = Cue.model_validate(item)
                     if cue.end_ms > right - left:
                         raise ValueError('局部识别返回的时间超出选区，请重试')
-                    subtitles.append(cue.model_copy(update={
-                        'id': f'repair_{request.request_id}_{index}', 'start_ms': left + cue.start_ms,
-                        'end_ms': left + cue.end_ms, 'speaker_id': None, 'assignment_reason': 'unassigned'}).model_dump())
+                    if request.operation == 'align':
+                        original = originals[cue.id]
+                        if cue.text != original.text:
+                            raise ValueError('对齐结果改变了校正文字')
+                        subtitles.append(original.model_copy(update={'start_ms': left + cue.start_ms, 'end_ms': left + cue.end_ms}).model_dump())
+                    else:
+                        subtitles.append(cue.model_copy(update={
+                            'id': f'repair_{request.request_id}_{index}', 'start_ms': left + cue.start_ms,
+                            'end_ms': left + cue.end_ms, 'speaker_id': None, 'assignment_reason': 'unassigned'}).model_dump())
             with _lock:
                 check()
                 if source_identity(video) != request.source_version:
@@ -262,6 +296,7 @@ def _run(project_id, video, request, value, event):
         with _lock:
             if not event.is_set() and store.directory(project_id).is_dir():
                 value.update(status='failed', stage='failed', subtitles=[], error=(
+                    '自动对齐未完成，请缩短选区或逐句对齐；校正文字已保留' if request.operation == 'align' else
                     '局部识别超时，请缩短选区后重试；原字幕未改动' if isinstance(error, subprocess.TimeoutExpired)
                     else '局部识别失败，请检查音轨和本地模型后重试；原字幕未改动'))
                 try:

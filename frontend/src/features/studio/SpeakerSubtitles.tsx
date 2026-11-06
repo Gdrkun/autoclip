@@ -437,7 +437,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           <SubtitleTimeline projectId={projectId} document={document} scene={editWindow} time={currentTime} selectedId={activeCue?.id}
             onSelect={activate} onSeek={seconds => onSeek(seconds, selectedScene)} onPause={onPause}
             onCommit={commitTime} onRange={setSelectedRange} disabled={readOnlyPending}/>
-          <SubtitleRepair projectId={projectId} draftId={draftId} document={document} range={selectedRange} scene={editWindow}
+          <SubtitleRepair projectId={projectId} draftId={draftId} document={document} activeCue={activeCue} range={selectedRange} scene={editWindow}
             backend={backend} prompt={prompt} disabled={readOnlyPending || processing} onApply={subtitles => patch({ subtitles })}
             onAudition={onAudition ? (start, end) => onAudition(start, end, selectedScene, loop) : undefined}/>
           {activeCue && <div className="subtitle-active-editor">

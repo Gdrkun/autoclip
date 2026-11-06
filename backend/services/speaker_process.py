@@ -21,7 +21,7 @@ class SpeakerProcess:
     def __enter__(self):
         return self
 
-    def infer(self, audio, result):
+    def infer(self, audio, result, *, options=None):
         long_audio.checkpoint()
         if self.process is None:
             self.log.parent.mkdir(parents=True, exist_ok=True)
@@ -33,7 +33,7 @@ class SpeakerProcess:
             child_guard.track(self.process, self.owner)
         result = Path(result)
         result.unlink(missing_ok=True)
-        self.process.stdin.write(json.dumps({'audio': str(audio), 'result': str(result)}) + '\n')
+        self.process.stdin.write(json.dumps({'audio': str(audio), 'result': str(result), **(options or {})}) + '\n')
         self.process.stdin.flush()
         started = time.monotonic()
         while not result.is_file():

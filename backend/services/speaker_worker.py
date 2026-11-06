@@ -74,6 +74,24 @@ def model_engine(model, **options):
 
 
 def infer(args):
+    if getattr(args, 'alignment', None):
+        # Alignment uses the already prepared Whisper runtime and supplied text only.
+        os.environ.update(CUDA_VISIBLE_DEVICES='', HF_HUB_OFFLINE='1', TRANSFORMERS_OFFLINE='1',
+                          OMP_NUM_THREADS=str(args.threads), MKL_NUM_THREADS=str(args.threads))
+        deny_network()
+        import numpy as np
+        from speaker_whisper import align
+        with wave.open(str(args.audio), 'rb') as stream:
+            if (stream.getnchannels(), stream.getframerate(), stream.getsampwidth()) != (1, 16000, 2):
+                raise ValueError('Alignment audio must be mono 16kHz PCM16')
+            duration = stream.getnframes() * 1000 // 16000
+            samples = np.frombuffer(stream.readframes(stream.getnframes()), dtype='<i2').astype(np.float32) / 32768
+        cues = json.loads(args.alignment.read_text(encoding='utf-8'))
+        result = {'duration_ms': duration, 'turns': [], 'subtitles': align(samples, args.asr_model, duration, cues, args.language, args.threads)}
+        pending = args.result.with_suffix('.pending')
+        pending.write_text(json.dumps(result, ensure_ascii=False, allow_nan=False), encoding='utf-8')
+        os.replace(pending, args.result)
+        return
     # Resolve only explicit directories; model aliases would trigger downloads.
     asr_only = getattr(args, 'asr_only', False)
     cam = None if asr_only else local_model(args.cam_model)
@@ -165,6 +183,7 @@ def main():
     parser.add_argument('--result', type=Path)
     parser.add_argument('--session', action='store_true', help='Read chunk requests from stdin; reuse loaded models')
     parser.add_argument('--diagnostics', type=Path, help='Private raw ASR and VAD diagnostics')
+    parser.add_argument('--alignment', type=Path, help='JSON captions to force-align with the prepared Whisper model')
     parser.add_argument('--cam-model', type=Path)
     parser.add_argument('--asr-only', action='store_true', help='Transcribe only; do not infer local speaker identities')
     parser.add_argument('--vad-model', type=Path, required=True)
@@ -186,6 +205,7 @@ def main():
         for line in sys.stdin:
             request = json.loads(line)
             args.audio, args.result = Path(request['audio']), Path(request['result'])
+            args.alignment = Path(request['alignment']) if request.get('alignment') else None
             infer(args)
     else:
         if not args.audio or not args.result:

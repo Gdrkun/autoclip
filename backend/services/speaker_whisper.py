@@ -65,3 +65,58 @@ def transcribe(samples, model_path, duration_ms, language, threads, prompt='', t
                 cues.append(Cue(id=f'cue_{len(cues) + 1:04d}', start_ms=left, end_ms=right, text=segment.text.strip()))
         raw.append({'start': segment.start, 'end': segment.end, 'text': segment.text})
     return cues, raw
+
+
+def align(samples, model_path, duration_ms, cues, language='auto', threads=4):
+    """Force the supplied tokens against the audio; never decode replacement words."""
+    from faster_whisper.audio import pad_or_trim
+    from faster_whisper.tokenizer import Tokenizer
+    from speaker_subtitles import Cue
+    if not 100 <= duration_ms <= 30000 or not cues or len(cues) > 40:
+        raise ValueError('自动对齐支持最多 30 秒、40 句字幕')
+    model = _model(str(Path(model_path).resolve()), threads)
+    features = model.feature_extractor(samples)[..., :-1]
+    frames = features.shape[-1]
+    encoded = model.encode(pad_or_trim(features))
+    if language == 'auto':
+        language = model.model.detect_language(encoded)[0][0][0].removeprefix('<|').removesuffix('|>')
+    tokenizer = Tokenizer(model.hf_tokenizer, model.model.is_multilingual, task='transcribe', language=language)
+    tokens, spans = [], []
+    for item in cues:
+        cue = Cue.model_validate(item)
+        if not any(character.isalnum() for character in cue.text):
+            raise ValueError('待对齐字幕需要包含实际台词')
+        if tokens:
+            tokens.extend(tokenizer.encode(' '))
+        begin = len(tokens)
+        part = tokenizer.encode(cue.text)
+        if not part:
+            raise ValueError('待对齐字幕无法编码')
+        tokens.extend(part)
+        spans.append((begin, len(tokens), cue))
+    if len(tokens) > 400:
+        raise ValueError('待对齐文字过长，请缩短选区')
+    words = model.find_alignment(tokenizer, [tokens], encoded, frames)[0]
+    cursor, aligned = 0, []
+    for word in words:
+        count = len(word['tokens'])
+        if tokens[cursor:cursor + count] != word['tokens']:
+            raise ValueError('对齐词序与校正文字不一致')
+        start, end = float(word['start']), float(word['end'])
+        if not all(math.isfinite(value) for value in (start, end)) or start < 0 or end < start:
+            raise ValueError('自动对齐返回无效时间')
+        if end > start and any(character.isalnum() for character in word['word']):
+            aligned.append((cursor, cursor + count, round(start * 1000), min(duration_ms, round(end * 1000))))
+        cursor += count
+    if cursor != len(tokens):
+        raise ValueError('校正文字未完整对齐，请缩短选区或逐句对齐')
+    results = []
+    for begin, stop, cue in spans:
+        selected = [word for word in aligned if word[0] < stop and word[1] > begin]
+        if not selected:
+            raise ValueError('部分台词没有可用对齐时间，请逐句核对')
+        left, right = min(word[2] for word in selected), max(word[3] for word in selected)
+        if right - left < 100:
+            raise ValueError('对齐区间过短，请缩短选区或逐句对齐')
+        results.append(cue.model_copy(update={'start_ms': left, 'end_ms': right}).model_dump())
+    return results
