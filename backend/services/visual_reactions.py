@@ -138,7 +138,11 @@ def _request(video, window, folder, rows, clues, instruction):
     return {'raw': raw, 'actual_times': actual}
 
 
-def analyze(project_id, video, srt=None, progress=None):
+def analyze(project_id, video, srt=None, progress=None, *, ranges=None):
+    from backend.services.studio.quick_preview import screening
+    if screening():
+        _current.set(None)
+        return None
     config = options(project_id)
     if not config.get('visual_reactions'):
         _current.set(None)
@@ -156,6 +160,10 @@ def analyze(project_id, video, srt=None, progress=None):
     budget = max(1, min(12, int(config.get('reaction_budget', 8))))
     rows = transcript_rows(srt)
     identity = [source_key(video), rows, config.get('instruction', ''), budget, model.get('base_url'), model.get('model')]
+    if ranges is not None:
+        if not ranges or any(not all(math.isfinite(value) for value in pair) or pair[0] < 0 or pair[1] <= pair[0] for pair in ranges):
+            raise ValueError('画面复核选区无效')
+        identity.append(ranges)
     key = hashlib.sha256(json.dumps(identity, ensure_ascii=False).encode()).hexdigest()
     root = report_path(project_id).parent / 'visual-reactions' / key
     root.mkdir(parents=True, exist_ok=True)
@@ -171,10 +179,26 @@ def analyze(project_id, video, srt=None, progress=None):
             scan_root = root.parent / ('scan-' + result.fingerprint)
             from backend.services.studio.audio import has_audio
             from backend.core.llm_usage import timed
-            with timed('reaction_scan'):
-                clues = reaction_scan.scan(video, result.duration, scan_root, audio=has_audio(video),
-                                           progress=lambda done, total: progress('scan', done, total) if progress else None)
-            windows = reaction_scan.candidate_windows(clues, result.duration, budget, rows)
+            if ranges is None:
+                with timed('reaction_scan'):
+                    clues = reaction_scan.scan(video, result.duration, scan_root, audio=has_audio(video),
+                                               progress=lambda done, total: progress('scan', done, total) if progress else None)
+                windows = reaction_scan.candidate_windows(clues, result.duration, budget, rows)
+            else:
+                clues, windows = [], []
+                if any(right > result.duration for left, right in ranges):
+                    raise ValueError('画面复核选区超出原片')
+                remaining = budget
+                for left, right in ranges:
+                    count = min(remaining, max(1, math.ceil((right - left) / 14)))
+                    for index in range(count):
+                        start = left + (right - left) * index / count
+                        end = min(right, start + 14)
+                        windows.append({'id': len(windows), 'start': start, 'end': end,
+                                        'times': [round(start + (end - start) * point / 11, 3) for point in range(12)]})
+                    remaining -= count
+                    if not remaining:
+                        break
             for window in windows:
                 cancellation.checkpoint(project_id)
                 if not intelligence.source_frame_analysis_allowed():

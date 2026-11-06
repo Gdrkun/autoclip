@@ -12,7 +12,12 @@ export default function ImportPreferences({value, onChange, hideGoal=false}: {va
     {!hideGoal&&<Row label={t("制作方式")}>
       <Select aria-label={t("制作方式")} size="small" style={{width:180}} value={value.goal} options={Object.entries(goalLabels).map(([key,label])=>({value:key,label:t(label)}))} onChange={goal=>patch({goal:goal as ImportOptions['goal']})} />
     </Row>}
-    <Row label={t('优先生成数量')} hint={t('每个平台先生成少量成片，其余候选按需生成。')}>
+    <Row label={t('处理方式')} hint={t('快速预选先看候选，只对选中的片段精修；没有字幕时仍需基础转写。')}>
+      <Select aria-label={t('处理方式')} size="small" style={{width:210}} value={value.quick_preview ? 'preview' : 'automatic'}
+        options={[{value:'automatic',label:t('自动制作成片')},{value:'preview',label:t('快速预选，选中再精修')}]}
+        onChange={mode=>patch({quick_preview:mode==='preview'})}/>
+    </Row>
+    <Row label={t('优先生成数量')} hint={t(value.quick_preview ? '快速预选不会自动渲染，确认候选后生成所选内容。' : '每个平台先生成少量成片，其余候选按需生成。')}>
       <Select aria-label={t('优先生成数量')} size="small" style={{width:180}} value={value.auto_render_limit || 3} options={[1,3,10].map(count => ({value:count,label:t('每个平台 {{count}} 条',{count})}))} onChange={auto_render_limit=>patch({auto_render_limit:auto_render_limit as 1|3|10})}/>
     </Row>
     <Row label={t("文字语言")}>

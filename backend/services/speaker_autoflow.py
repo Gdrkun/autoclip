@@ -72,6 +72,9 @@ def _was_stopped(project_id, job):
 
 
 def ensure(project_id, video, subtitles=None, on_progress=None, queued_job=None):
+    from backend.services.studio.quick_preview import screening
+    if screening():
+        return None
     from backend.services import speaker_integration as integration
     from backend.services.ai_model_settings import load
     from backend.services.publish_export import find_source_srt

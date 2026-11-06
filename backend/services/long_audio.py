@@ -166,9 +166,9 @@ def read_chunk(path, key, part, validate):
         return None
 
 
-def process_chunks(video, media, folder, key, infer, validate, on_progress=None, *, chunk_ms=CHUNK_MS):
+def process_chunks(video, media, folder, key, infer, validate, on_progress=None, *, chunk_ms=CHUNK_MS, parts=None):
     from backend.services.speaker_integration import atomic_json
-    parts = list(chunks(media['duration_ms'], chunk_ms))
+    parts = list(chunks(media['duration_ms'], chunk_ms)) if parts is None else list(parts)
     results = []
     with exclusive(folder):
         started = time.monotonic()
@@ -197,3 +197,25 @@ def process_chunks(video, media, folder, key, infer, validate, on_progress=None,
             atomic_json(folder / 'progress.json', {'completed': len(results), 'total': len(parts), 'reused': reused,
                                                    'elapsed_seconds': round(time.monotonic() - started, 3)})
         return results
+
+
+def range_chunks(duration_ms, ranges):
+    """Decode selected source intervals with the same bounded context as normal chunks."""
+    merged = []
+    for left, right in sorted(ranges):
+        if type(left) is not int or type(right) is not int or not 0 <= left < right <= duration_ms:
+            raise ValueError('所选片段时间超出原视频')
+        if merged and left <= merged[-1][1]:
+            merged[-1][1] = max(right, merged[-1][1])
+        else:
+            merged.append([left, right])
+    if not merged:
+        raise ValueError('请至少选择一个有效片段')
+    parts = []
+    for left, right in merged:
+        for start in range(left, right, CHUNK_MS):
+            stop = min(right, start + CHUNK_MS)
+            parts.append({'index': len(parts), 'start_ms': max(0, start - OVERLAP_MS),
+                          'end_ms': min(duration_ms, stop + OVERLAP_MS),
+                          'owned_start_ms': start, 'owned_end_ms': stop})
+    return parts

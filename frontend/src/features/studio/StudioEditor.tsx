@@ -266,7 +266,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
         setCurrentTime(seconds)
       }}/>
       <SpeakerSubtitles key={`${projectId}:${draftId}`} projectId={projectId} draftId={draftId} scenes={draft.scenes} selectedScene={selected}
-        autoEnabled={draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id)}
+        autoEnabled={!workspace.generation?.quick_preview && (draft.subtitles || !!draft.subtitles_auto_suppressed || (draft.subtitles_auto_suppressed === undefined && draft.origin.startsWith('auto-') && draft.revision === 1 && !draft.parent_draft_id))}
         document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} onLayout={value => patch({ speaker_subtitle_layout: value })} enabled={draft.speaker_colors !== false} dirty={dirty} currentTime={currentTime}
         onChange={value => patch({ speaker_subtitles: value, language: 'source' })}
         onStyleEditingChange={setCaptionStyleEditing}

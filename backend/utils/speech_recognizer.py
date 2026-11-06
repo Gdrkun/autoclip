@@ -861,7 +861,11 @@ def generate_subtitle_for_video(video_path: Path, output_path: Optional[Path] = 
     from backend.services.ai_model_settings import load as load_model_settings
     model_settings = load_model_settings()
     selection = model_settings.transcription if model_settings else None
-    if selection and selection.speaker_diarization and selection.provider in ('whisper_local', 'sensevoice_local'):
+    from backend.services.studio.quick_preview import screening
+    if selection and selection.speaker_diarization and selection.provider in ('whisper_local', 'sensevoice_local') and screening():
+        from backend.services.studio.quick_preview import transcribe_plain
+        return transcribe_plain(Path(video_path), output_path, selection, language)
+    if selection and selection.speaker_diarization and selection.provider in ('whisper_local', 'sensevoice_local') and not screening():
         from backend.services.speaker_integration import transcribe_local
         return transcribe_local(Path(video_path), output_path, selection, language)
     if method == 'sensevoice_local' or method == 'auto' and selection and selection.provider == 'sensevoice_local':

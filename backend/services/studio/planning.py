@@ -87,7 +87,10 @@ def recommend(video: Path, options: ImportOptions):
     mode = 'manual'
     diagnostics = None
     local_evidence = None
-    if options.goal != 'auto':
+    if options.quick_preview and options.goal == 'auto' and not short and not no_audio and consent.analysis_mode != 'visual':
+        mode = 'local'
+        local_evidence, result = _local_recommendation(video, duration)
+    elif options.goal != 'auto':
         result = Recommendation(content_type='other', goal=options.goal,
             reason='按你指定的制作方式处理，其他未指定选项使用推荐设置。', confidence=1,
             aspect='portrait' if options.goal == 'promo' else 'original')

@@ -74,7 +74,7 @@ def global_labels(embeddings, maximum=2, threshold=.25):
     return [remap.setdefault(label, f'spk_{len(remap)}') for label in assigned]
 
 
-def combine(results, duration_ms, existing=None):
+def combine(results, duration_ms, existing=None, labeler=None):
     windows, embeddings, cues = [], [], []
     for part, value in results:
         offset = part['start_ms']
@@ -90,7 +90,7 @@ def combine(results, duration_ms, existing=None):
                 start, end = offset + cue.start_ms, min(duration_ms, offset + cue.end_ms)
                 if part['owned_start_ms'] <= (start + end) / 2 < part['owned_end_ms']:
                     cues.append(cue.model_copy(update={'start_ms': start, 'end_ms': end, 'speaker_id': None}))
-    turns = windows_to_turns(windows, global_labels(embeddings))
+    turns = windows_to_turns(windows, labeler(embeddings) if labeler else global_labels(embeddings))
     if existing is not None:
         cues = existing
     else:
@@ -107,7 +107,7 @@ def combine(results, duration_ms, existing=None):
                            subtitles=associate_cues(cues, turns))
 
 
-def execute(video, root, backend, prompt, subtitles=None, on_progress=None):
+def execute(video, root, backend, prompt, subtitles=None, on_progress=None, *, ranges=None, labeler=None):
     import os
     from backend.services.speaker_integration import atomic_json
     media = long_audio.probe(video)
@@ -121,6 +121,9 @@ def execute(video, root, backend, prompt, subtitles=None, on_progress=None):
     # Voice-only chunks do not depend on transcript wording, ASR model or prompt.
     # Re-associate the current transcript after loading the unchanged acoustic evidence.
     options = {'mode': 'voices', 'chunk_ms': long_audio.CHUNK_MS}
+    parts = long_audio.range_chunks(media['duration_ms'], ranges) if ranges is not None else None
+    if ranges is not None:
+        options['selected_ranges'] = ranges
     if not subtitles:
         files.extend([asr / ('model.bin' if backend == 'whisper' else 'model.pt'), asr / 'config.json' if backend == 'whisper' else asr / 'config.yaml'])
         options.update(backend=backend, prompt=prompt, reuse=False)
@@ -138,15 +141,20 @@ def execute(video, root, backend, prompt, subtitles=None, on_progress=None):
     with SpeakerProcess(command, env=env, log=folder / 'worker-session.log') as session:
         def infer(audio, temp, part):
             return session.infer(audio, temp / 'worker.json')
-        results = long_audio.process_chunks(video, media, folder, key, infer, validate_chunk, on_progress)
+        if parts is None:
+            results = long_audio.process_chunks(video, media, folder, key, infer, validate_chunk, on_progress)
+        else:
+            results = long_audio.process_chunks(video, media, folder, key, infer, validate_chunk, on_progress, parts=parts)
     existing = None
     if subtitles:
         from backend.utils.text_processor import TextProcessor
         existing = [Cue(id=f'cue_{i:05d}', start_ms=round(TextProcessor.time_to_seconds(c['start_time']) * 1000),
                         end_ms=round(TextProcessor.time_to_seconds(c['end_time']) * 1000), text=c['text'])
                     for i, c in enumerate(TextProcessor.parse_srt(Path(subtitles)), 1)]
+        if ranges is not None:
+            existing = [cue for cue in existing if any(cue.start_ms < right and cue.end_ms > left for left, right in ranges)]
     long_audio.checkpoint()
-    document = combine(results, media['duration_ms'], existing)
+    document = combine(results, media['duration_ms'], existing, labeler)
     # Write the compatible final contract only after every validated chunk has completed.
     atomic_json(folder / 'speaker_subtitles.json', document.model_dump())
     text = '\n\n'.join(f"{i}\n{timestamp(c.start_ms)} --> {timestamp(c.end_ms)}\n{c.text}" for i, c in enumerate(document.subtitles, 1)) + '\n'

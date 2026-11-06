@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from backend.core import llm_usage
 from backend.services.studio import audio, intelligence, store
+from backend.services.studio import quick_preview
 from backend.services.character_background import with_project_context
 from backend.services.studio.features import resolve_features
 from backend.services.studio.models import Draft, Preferences, Scene
@@ -1128,11 +1129,13 @@ def _fit_platform_limit(project_id, value, strategy):
 
 
 @_tracked('production')
+@quick_preview.defer_for_project
 def _auto_generate(project_id, plan):
     """Produce and render platform variants after the cheap screening pass."""
     started = monotonic()
     state = store.read(project_id)
     generation = state.get('generation') or {}
+    preview_only = generation.get('quick_preview') is True
     platforms = generation.get('requested_platforms') or []
     branding = generation.get('branding') or {'outro_enabled': True, 'outro_version': 'v1'}
     video = source(project_id)
@@ -1146,7 +1149,7 @@ def _auto_generate(project_id, plan):
         variants = []
         derived_drafts = []
         from backend.services.platform_strategy import platform_strategy
-        burned = _source_has_burned_subtitles(project_id, video)
+        burned = False if preview_only else _source_has_burned_subtitles(project_id, video)
         framing_cache = {}
         packaging_cache = {}
         # Platform eligibility must precede the score limit: otherwise ten short clips
@@ -1169,7 +1172,11 @@ def _auto_generate(project_id, plan):
                     skipped.append({'strategy_id': strategy_id, 'reason': '素材没有足够完整的长内容'})
                     continue
                 value, trimmed = _fit_platform_limit(project_id, {**base, 'id': uuid.uuid4().hex, 'revision': 1}, strategy)
-                now = source_id in automatic[strategy_id]
+                if preview_only:
+                    captions = quick_preview.caption_document(project_id, value)
+                    if captions:
+                        value['speaker_subtitles'] = captions
+                now = not preview_only and source_id in automatic[strategy_id]
                 use_html = bool(chosen) and now and strategy.aspect == 'portrait' and source_id in html_ids
                 rank_fallback = bool(chosen) and now and strategy.aspect == 'portrait' and source_id not in html_ids
                 framed = None  # on-demand versions are framed and packaged when the user asks (produce_variant)
@@ -1177,10 +1184,12 @@ def _auto_generate(project_id, plan):
                     with llm_usage.timed('framing'):
                         value, framed = _apply_framing(project_id, value, strategy_id, video, burned, framing_cache)
                 planned.append((strategy_id, value, trimmed, framed, now, use_html, rank_fallback))
-        with llm_usage.timed('packaging'):
-            _prefetch_packaging(project_id, [(strategy_id, value) for strategy_id, value, _, _, now, _, _ in planned if now], burned, packaging_cache)
-        with llm_usage.timed('post_copy'):
-            posts = _posts_for(project_id, [(strategy_id, value) for strategy_id, value, _, _, now, _, _ in planned if now], packaging_cache)
+        posts = {}
+        if not preview_only:
+            with llm_usage.timed('packaging'):
+                _prefetch_packaging(project_id, [(strategy_id, value) for strategy_id, value, _, _, now, _, _ in planned if now], burned, packaging_cache)
+            with llm_usage.timed('post_copy'):
+                posts = _posts_for(project_id, [(strategy_id, value) for strategy_id, value, _, _, now, _, _ in planned if now], packaging_cache)
         for strategy_id, value, trimmed, framed, now, use_html, rank_fallback in planned:
             if now:
                 value = _apply_packaging(project_id, value, strategy_id, burned, packaging_cache)
@@ -1207,8 +1216,14 @@ def _auto_generate(project_id, plan):
             data['output_variants'].extend(variants)
             data['generation'].update(status='rendering', skipped=skipped, started_at=data['generation'].get('started_at') or store.now(), **_generation_route(data.get('plan')))
             data['analysis'] = {'status': 'running', 'phase': 'rendering', 'run_id': (data.get('analysis') or {}).get('run_id'), 'message': '正在生成可发布成片', 'instance': store.INSTANCE, 'created_at': store.now()}
+            if preview_only:
+                data['generation'].update(status='awaiting_selection', candidates_ready_at=store.now())
+                data['analysis'].update(status='completed', phase='production', message='候选片段已就绪，请选择要精修的内容', duration_ms=round((monotonic() - started) * 1000))
         store.change(project_id, persist)
-        _dispatch_pending_variants(project_id)
+        if preview_only:
+            mark_project(project_id, 'completed')
+        else:
+            _dispatch_pending_variants(project_id)
     except Exception as error:
         store.raise_owned_read_error(error)
         capture_studio_exception(error, 'production')
@@ -1447,8 +1462,17 @@ def _produce_on_demand(project_id, variant_id):
         state = store.read(project_id)
         variant = next(item for item in state['output_variants'] if item['id'] == variant_id)
         raw = next(item for item in state['drafts'] if item['id'] == variant['draft_id'])
+        raw = deepcopy(raw)
         video = source(project_id)
-        _prepare_speaker_captions(project_id, video)
+        if (state.get('generation') or {}).get('quick_preview'):
+            captions = quick_preview.prepare_selected(project_id, video, raw)
+            if captions:
+                raw['speaker_subtitles'] = captions
+            from backend.services import visual_reactions
+            ranges = [(scene['start'], scene['end']) for scene in raw['scenes']]
+            visual_reactions.analyze(project_id, video, ranges=ranges)
+        else:
+            _prepare_speaker_captions(project_id, video)
         burned = _source_has_burned_subtitles(project_id, video)
         strategy_id = variant['strategy_id']
         value, framed = _apply_framing(project_id, raw, strategy_id, video, burned, {})
@@ -1460,6 +1484,8 @@ def _produce_on_demand(project_id, variant_id):
         def ready(data):
             for index, item in enumerate(data['drafts']):
                 if item['id'] == draft['id']:
+                    if item.get('revision') != raw.get('revision'):
+                        raise store.ConflictError('草稿在精修期间有新修改，请检查后重试；校对内容已保留')
                     data['drafts'][index] = {**draft, 'updated_at': store.now()}
             target = next(item for item in data['output_variants'] if item['id'] == variant_id)
             if framed:
@@ -1564,6 +1590,7 @@ def inspect_project(project_id, options, url=None, browser=None, *, producer=Non
             'requested_platforms': list(options.platforms),
             'branding': options.branding.model_dump(),
             'auto_start': options.auto_start,
+            **({'quick_preview': True} if options.quick_preview else {}),
             **({'auto_render_limit': options.auto_render_limit} if options.auto_render_limit != AUTO_RENDER_LIMIT else {}),
             'portrait_style': options.portrait_style,
             **({'html_template': options.html_template} if getattr(options, 'html_template', None) else {}),
@@ -1578,7 +1605,7 @@ def inspect_project(project_id, options, url=None, browser=None, *, producer=Non
         state.setdefault('output_variants', [])
         state['analysis'] = {'status':'running', 'phase':'screening', 'run_id':uuid.uuid4().hex, 'message':'准备素材' if url else '快速判断适合的制作类型', 'instance':store.INSTANCE, 'created_at':store.now()}
         store.write(project_id, state)
-        if options.auto_start:
+        if options.auto_start and not options.quick_preview:
             _prepare_speaker_framing(options.platforms)
         try:
             executor.submit(_inspect, project_id, options, url, browser, _io_receipt=('analysis', state['analysis']['run_id'], 'screening'))
@@ -1611,15 +1638,15 @@ def _inspect(project_id, options, url, browser):
             store.change(project_id, lambda data: data['analysis'].update(message='正在查询角色背景'))
         background = prepare_project(project_id, options.background_query)
         from backend.services.singing_detection import analyze as analyze_singing
-        if options.detect_singing:
+        if options.detect_singing and not options.quick_preview:
             store.change(project_id, lambda data: data['analysis'].update(message='正在检测歌声候选'))
         def singing_progress(done, total, reused):
             store.change(project_id, lambda data: data['analysis'].update(message='正在检测歌声候选',
                          percent=round(done * 100 / total), completed_chunks=done, total_chunks=total, reused_chunks=reused))
-        singing = analyze_singing(project_id, source(project_id), options.detect_singing,
-                                  **({'on_progress': singing_progress} if options.detect_singing else {}))
+        singing = analyze_singing(project_id, source(project_id), options.detect_singing and not options.quick_preview,
+                                  **({'on_progress': singing_progress} if options.detect_singing and not options.quick_preview else {}))
         store.change(project_id, lambda data: data['analysis'].pop('percent', None))
-        with project_context(project_id):
+        with project_context(project_id), quick_preview.context(options.quick_preview):
             plan = recommend(source(project_id), options)
         if background is not None:
             plan['background_research'] = background.model_dump()

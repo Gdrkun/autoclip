@@ -322,6 +322,10 @@ export class WorkflowTracker {
         details = { ...details, recommendation_mode: snapshot.plan.mode, analysis_mode: snapshot.plan.recommended_analysis, subtitle_status: snapshot.plan.local_evidence?.subtitle_status }
       }
     } else if (w.kind === 'studio-generation') {
+      if (snapshot.generation?.status === 'awaiting_selection') {
+        // Candidate selection is a pause, not completed video delivery.
+        w.settled = true; this.persist(); return
+      }
       if (!['completed', 'partial', 'failed'].includes(snapshot.generation?.status || '')) return
 
       event = 'studio_generation_finished'; outcome = snapshot.generation!.status

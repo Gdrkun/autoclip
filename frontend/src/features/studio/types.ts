@@ -89,7 +89,7 @@ export interface OutputVariant {
 export interface PostCopy { title: string; description: string; tags: string[] }
 export interface GenerationState {
   requested_platforms: string[]; branding: { outro_enabled: boolean; outro_version: string }
-  auto_start: boolean; auto_render_limit?: 1 | 3 | 10; status: 'screening' | 'awaiting_confirmation' | 'production' | 'rendering' | 'completed' | 'partial' | 'failed'
+  auto_start: boolean; quick_preview?: boolean; auto_render_limit?: 1 | 3 | 10; status: 'screening' | 'awaiting_confirmation' | 'awaiting_selection' | 'production' | 'rendering' | 'completed' | 'partial' | 'failed'
   created_at: string; skipped?: { strategy_id: string; reason: string }[]; error?: string; completed_variant_count?: number
   html_template?: 'editorial' | 'street' | 'classic'
   recommended_template?: 'editorial' | 'street' | 'classic'
@@ -147,7 +147,7 @@ export function portraitDesign(draft: Draft): Draft {
 export interface ImportOptions {
   goal: 'auto' | Goal; language: Language; aspect: Draft['aspect'] | null
   duration: number | null; instruction: string; background_query?: string; detect_singing?: boolean
-  visual_reactions?: boolean; reaction_budget?: number; auto_render_limit?: 1 | 3 | 10
+  visual_reactions?: boolean; reaction_budget?: number; auto_render_limit?: 1 | 3 | 10; quick_preview?: boolean
   portrait_style?: 'auto' | 'interview' | 'podcast'
   html_template?: 'editorial' | 'street' | 'classic'
 }

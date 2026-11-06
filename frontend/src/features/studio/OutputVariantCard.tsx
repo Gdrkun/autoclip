@@ -22,7 +22,7 @@ const framingHints: Record<NonNullable<OutputVariant['framing']>, string> = {
   full_frame_captions: '原片自带字幕，保留完整画面以免裁掉字幕',
 }
 
-export default function OutputVariantCard({ projectId, variant, draft, job, onRetry, onProduce, recommendation }: { projectId: string; variant: OutputVariant; draft?: Draft; job?: RenderJob; onRetry: () => void; onProduce: () => void; recommendation?: { recommended_template?: VariantProperties['recommended_template']; accepted_recommendation?: boolean } }) {
+export default function OutputVariantCard({ projectId, variant, draft, job, onRetry, onProduce, recommendation, selected, onSelect }: { projectId: string; variant: OutputVariant; draft?: Draft; job?: RenderJob; onRetry: () => void; onProduce: () => void; selected?: boolean; onSelect?: (checked: boolean) => void; recommendation?: { recommended_template?: VariantProperties['recommended_template']; accepted_recommendation?: boolean } }) {
   const navigate = useNavigate()
   const [asking, setAsking] = useState(false)
   const [coverStamp, setCoverStamp] = useState(0)
@@ -51,6 +51,7 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
   return <article className="ac-card studio-output-card" aria-label={variant.post?.title || draft?.title || t('正在准备成片')}>
     <div className="studio-variant-thumb" title={productionDetails}>{completed && variant.render_job_id ? <video className="studio-variant-video" controls preload="metadata" poster={variant.cover ? studioApi.variantCover(projectId, variant.id, coverStamp) : undefined} src={studioApi.video(projectId, variant.render_job_id)}/> : <span className="play">▷</span>}<span className="ac-tag ac-tag--tl">{platformLabel(variant.strategy_id)}</span>{duration > 0 && <span className="ac-tag ac-tag--br">{fmtDuration(duration)}</span>}{!completed && <span className="ac-tag studio-output-progress" role="status">{failed ? t('生成失败') : onDemand ? t('备选片段 · 需要时再生成') : variant.status === 'preparing' ? t('正在准备取景与包装') : job?.status === 'running' ? t('正在生成') : t('排队生成中')}</span>}</div>
     <div className="ac-card-body">
+      {onSelect && <label className="speaker-check"><input type="checkbox" checked={!!selected} onChange={event=>onSelect(event.target.checked)}/>{t('选中此候选')}</label>}
       {!variant.post && <h2 className="ac-card-title">{draft?.title || t('正在准备成片')}</h2>}
       {variant.trimmed_to_sec && <p className="studio-output-hint">{t('平台上限 {{seconds}} 秒，已在句子结束处截断', { seconds: variant.trimmed_to_sec })}</p>}
       {packagingHint && <p className="studio-output-hint">{packagingHint}</p>}
