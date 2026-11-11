@@ -358,7 +358,16 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
       {document && <span className="speaker-panel-count">{visibleCues.length} {t('条字幕')}</span>}
       <span className="speaker-panel-chevron"><Icon name="chevron"/></span>
     </summary>
-    <div className="speaker-panel-body">
+    <div className="speaker-panel-body" onFocusCapture={event=>{
+      if(window.innerWidth>650)return
+      const target=event.target as HTMLElement
+      window.requestAnimationFrame(()=>{
+        const preview=window.document.querySelector<HTMLElement>('.studio-editor-sticky')
+        if(!preview||!target.isConnected)return
+        const top=target.getBoundingClientRect().top, bottom=preview.getBoundingClientRect().bottom
+        if(top<bottom+16)window.scrollBy({top:top-bottom-16,behavior:'auto'})
+      })
+    }}>
       <details className="speaker-recognition" open={!document}>
         <summary><Icon name="settings"/><span>{t('识别设置')}</span><span className="speaker-recognition-status">{processing ? `${t('正在识别字幕…')} ${job.percent ?? 0}%` : 'CPU'}</span><Icon name="chevron"/></summary>
         <div className="speaker-recognition-body">
@@ -434,12 +443,28 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
         </section>
         <section className="speaker-section speaker-captions-section" hidden={editorView !== 'captions'}>
           <div className="speaker-section-head"><div><h3>{t('逐句校对')}<span className="speaker-small-count">{visibleCues.length}</span></h3><p>{t('仅显示当前切片的字幕；时间按原视频计。')}</p></div><Btn size="sm" onClick={() => patch({ subtitles: sortSpeakerCuesInScenes(document.subtitles, scenes, retainedIds) })}>{t('按时间排序')}</Btn></div>
+            <div className="speaker-toolbar-actions speaker-transport-tools">
+              <Btn size="sm" disabled={readOnlyPending || !history.current.past.length} onClick={() => travel(false)}>{t('撤销')}</Btn>
+              <Btn size="sm" disabled={readOnlyPending || !history.current.future.length} onClick={() => travel(true)}>{t('重做')}</Btn>
+              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
+                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
+                selectCue(visibleCues[Math.max(0, index - 1)])
+              }}>{t('上一句')}</Btn>
+              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
+                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
+                selectCue(visibleCues[Math.min(visibleCues.length - 1, index + 1)])
+              }}>{t('下一句')}</Btn>
+              <label className="speaker-check"><input type="checkbox" checked={loop} onChange={event => { setLoop(event.target.checked); onLoopChange?.(event.target.checked) }}/>{t('循环试听')}</label>
+            </div>
+          <details className="subtitle-shortcuts"><summary>{t('校对快捷键')}</summary><p>{t('空格 / K 播放暂停，J / L 前后跳转 2 秒；输入文字时保留原生按键。')}</p><p>{t('Alt + 上下键切换字幕，Ctrl + Enter 试听当前句，Ctrl / Cmd + S 保存。')}</p></details>
           <SubtitleTimeline projectId={projectId} document={document} scene={editWindow} time={currentTime} selectedId={activeCue?.id}
             onSelect={activate} onSeek={seconds => onSeek(seconds, selectedScene)} onPause={onPause}
             onCommit={commitTime} onRange={setSelectedRange} disabled={readOnlyPending}/>
+          <details className="subtitle-repair-tools"><summary>{t('局部识别与时间对齐')}</summary>
           <SubtitleRepair projectId={projectId} draftId={draftId} document={document} activeCue={activeCue} range={selectedRange} scene={editWindow}
             backend={backend} prompt={prompt} disabled={readOnlyPending || processing} onApply={subtitles => patch({ subtitles })}
             onAudition={onAudition ? (start, end) => onAudition(start, end, selectedScene, loop) : undefined}/>
+          </details>
           {activeCue && <div className="subtitle-active-editor">
             <div className="subtitle-active-heading"><strong>{t('当前字幕')}</strong>
               <select className="ac-input" aria-label={t('当前字幕说话人')} value={activeCue.speaker_id || ''} onChange={event => patch({
@@ -486,19 +511,7 @@ export default function SpeakerSubtitles({ projectId, draftId, document, layout,
           </div></details>}
           <p className="subtitle-repair-hint">{t('拆句时，文字光标决定分开哪几个字，播放头决定分开的时间。')}</p>
           <div className="speaker-editor-toolbar">
-            <div className="speaker-toolbar-actions">
-              <Btn size="sm" disabled={readOnlyPending || !history.current.past.length} onClick={() => travel(false)}>{t('撤销')}</Btn>
-              <Btn size="sm" disabled={readOnlyPending || !history.current.future.length} onClick={() => travel(true)}>{t('重做')}</Btn>
-              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
-                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
-                selectCue(visibleCues[Math.max(0, index - 1)])
-              }}>{t('上一句')}</Btn>
-              <Btn size="sm" disabled={!visibleCues.length} onClick={() => {
-                const index = visibleCues.findIndex(cue => cue.id === (editingCue || playbackCue?.id))
-                selectCue(visibleCues[Math.min(visibleCues.length - 1, index + 1)])
-              }}>{t('下一句')}</Btn>
-              <label className="speaker-check"><input type="checkbox" checked={loop} onChange={event => { setLoop(event.target.checked); onLoopChange?.(event.target.checked) }}/>{t('循环试听')}</label>
-            </div>
+
             <div className="speaker-search-row">
               <input className="ac-input speaker-search" type="search" aria-label={t('搜索字幕文字')} placeholder={t('搜索字幕文字')} value={query} onChange={event => setQuery(event.target.value)}/>
               <select className="ac-input speaker-filter" aria-label={t('筛选说话人')} value={speakerFilter} onChange={event => setSpeakerFilter(event.target.value)}>

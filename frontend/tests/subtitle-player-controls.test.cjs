@@ -12,7 +12,7 @@ function mount(){
   'react-router-dom':{useNavigate:()=>()=>{},useParams:()=>({id:'p',draftId:'d'})},'../../ui':{Btn:'button',Dialog:'dialog',Row:'row',fmtDuration:String},
   './api':{studioApi:{source:()=>'/fixture.mp4'},errorText:String},'./useWorkspace':{useWorkspace:()=>({workspace:{drafts:[doc],jobs:[]},refresh(){}})},
   './types':{draftDuration:()=>30,draftError:()=>null,frameModeAt:()=>'',cropAt:()=>.5,languages:[]},'./titlePresets':{isArtworkStyle:()=>false,titlePresets:[]},
-  './draftExportState':{draftExportState:()=>({})},'./draftEditUndo':{},'./studio.css':{}}
+  './draftExportState':{draftExportState:()=>({})},'./draftEditUndo':{},'./recentWork':{},'./studio.css':{}}
  for(const name of ['StudioDownloadLink','PlayerBar','CandidatePicker','TitleArtwork','DraftVariantDialog','DraftSettingsPanel','SpeakerSubtitles','SpeakerCaptionPreview','CaptionMaskPreview','KnowledgeContext','ReactionEvidence'])mocks['./'+name]={default:name}
  const exports={}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio/StudioEditor.tsx'),'utf8'),{
@@ -40,4 +40,15 @@ test('scrubbing during an audition clears the old loop range',()=>{
  view.render().find(node=>node.type==='PlayerBar').props.onSeek(10)
  view.render().find(node=>node.type==='video').props.onTimeUpdate()
  assert.equal(view.player.currentTime,10)
+})
+
+test('jumping to the clip end stays there, and explicit play restarts the clip',()=>{
+ const view=mount()
+ view.render().find(node=>node.type==='PlayerBar').props.onSeek(30)
+ view.render().find(node=>node.type==='video').props.onTimeUpdate()
+ assert.equal(view.player.currentTime,30)
+ assert.equal(view.player.paused,true)
+ view.render().find(node=>node.type==='PlayerBar').props.onToggle()
+ assert.equal(view.player.currentTime,0)
+ assert.equal(view.player.paused,false)
 })

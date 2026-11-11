@@ -20,6 +20,7 @@ import KnowledgeContext from './KnowledgeContext'
 import ReactionEvidence from './ReactionEvidence'
 import { draftExportState } from './draftExportState'
 import { copyFields, undoDraftEdit, type DraftEditUndo } from './draftEditUndo'
+import { rememberRecentWork } from './recentWork'
 import './studio.css'
 
 export default function StudioEditor() {
@@ -56,6 +57,8 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const [captionStyleEditing, setCaptionStyleEditing] = useState(false)
   const auditionRange = useRef<{ start: number; end: number; loop: boolean } | null>(null)
   const [timingPending, setTimingPending] = useState(false)
+  const [playbackRate,setPlaybackRate]=useState(1)
+  useEffect(()=>{if(draft)rememberRecentWork({projectId,draftId})},[projectId,draftId,!!draft])
   const timingPendingRef = useRef(false)
   useEffect(() => {
     const controller = new AbortController()
@@ -140,7 +143,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   const playBase = showRendered ? 0 : scene?.start ?? 0
   const playLength = showRendered ? renderedDuration : scene ? scene.end - scene.start : 0
   const stopAudition = () => { auditionRange.current = null }
-  const togglePlay = () => { const v = video.current; if (!v) return; if (v.paused) void v.play().catch(() => undefined); else v.pause() }
+  const togglePlay = () => { const v = video.current; if (!v) return; if (v.paused) { if(!showRendered && scene && v.currentTime>=scene.end-.01)v.currentTime=scene.start;void v.play().catch(() => undefined) } else v.pause() }
   const jobs = workspace.jobs.filter(j => j.draft_id === draftId)
   const exportState = draft ? draftExportState(draft, jobs) : undefined
   const currentJob = !dirty ? exportState?.completed || exportState?.failure : undefined
@@ -201,10 +204,21 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     try { await action() } catch (e) { setError(t(errorText(e))) } finally { setBusy('') }
   }
   const saveAction = useRef<() => void>(() => undefined)
+  const transport = useRef<(event:KeyboardEvent)=>void>(()=>undefined)
+  transport.current=event=>{
+    if(event.isComposing||event.ctrlKey||event.metaKey||event.altKey||(event.target as HTMLElement)?.closest?.('input,textarea,select,button,a,[contenteditable="true"],[role="dialog"]'))return
+    const player=video.current;if(!player)return
+    if([' ','j','k','l','ArrowLeft','ArrowRight'].includes(event.key)){
+      event.preventDefault();stopAudition()
+      if(event.key===' '||event.key==='k')togglePlay()
+      else {player.currentTime=playBase+Math.max(0,Math.min(playLength,currentTime-playBase+(event.key==='j'||event.key==='ArrowLeft'?-2:2)));setCurrentTime(player.currentTime)}
+    }
+  }
   saveAction.current = () => { void perform('save', async () => { await save() }) }
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') { event.preventDefault(); saveAction.current() }
+      else transport.current(event)
     }
     window.addEventListener('keydown', shortcut)
     return () => window.removeEventListener('keydown', shortcut)
@@ -243,7 +257,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     <fieldset disabled={!!busy} className="studio-fieldset">
       <div className="studio-editor-grid"><section className="studio-editor-main"><div className="studio-editor-sticky"><div className={`studio-stage studio-stage--${draft.aspect}`}>
         <div className="studio-video-frame" style={{aspectRatio: draft.aspect==='portrait'?'9/16':draft.aspect==='landscape'?'16/9':undefined}}>
-          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = speakerSeek.current ?? scene.start; speakerSeek.current = null } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); const audition=auditionRange.current; if(audition && (v.currentTime >= audition.end || v.currentTime < audition.start - .25)) { if(audition.loop) v.currentTime=audition.start; else {v.pause(); auditionRange.current=null} return } if(scene && !showRendered && (v.currentTime>=scene.end || v.currentTime<scene.start-.25)) {if(v.currentTime>=scene.end) v.pause(); v.currentTime=scene.start}}} />
+          <video ref={video} preload="metadata" playsInline muted={muted} onPlay={() => setPlaying(true)} onPause={() => setPlaying(false)} onError={() => setPlaybackError(true)} onLoadedData={() => setPlaybackError(false)} src={showRendered && previewUrl ? previewUrl : sourcePreview.status === 'completed' && sourcePreview.version ? studioApi.compatibleSource(projectId, sourcePreview.version) : studioApi.source(projectId)} style={{objectFit: showRendered || draft.layout!=='crop' || frameModeAt(scene, currentTime)==='fit'?'contain':'cover', objectPosition:`${cropAt(scene, currentTime, draft.crop_x ?? .5)*100}% 50%`}} onClick={togglePlay} onLoadedMetadata={() => { const v = video.current; if (!v) return; v.playbackRate=playbackRate; if (!showRendered) setSourceSize({ width: v.videoWidth || 1920, height: v.videoHeight || 1080 }); if (showRendered) setRenderedDuration(v.duration); else if (scene) { setSourceDuration(v.duration); v.currentTime = speakerSeek.current ?? scene.start; speakerSeek.current = null } }} onTimeUpdate={() => {const v=video.current; if(!v) return; setCurrentTime(v.currentTime); const audition=auditionRange.current; if(audition && (v.currentTime >= audition.end || v.currentTime < audition.start - .25)) { if(audition.loop) v.currentTime=audition.start; else {v.pause(); auditionRange.current=null} return } if(scene && !showRendered) {if(v.currentTime>=scene.end) {v.pause();if(v.currentTime>scene.end+.01)v.currentTime=scene.end} else if(v.currentTime<scene.start-.25)v.currentTime=scene.start}}} />
           {!showRendered && draft.caption_mask && (draft.subtitles || !draft.speaker_subtitles) && <CaptionMaskPreview video={video} band={draft.caption_mask} sourceSize={sourceSize}
             fit={draft.layout === 'crop' && frameModeAt(scene, currentTime) !== 'fit' ? 'cover' : 'contain'} position={cropAt(scene, currentTime, draft.crop_x ?? .5)} />}
           {!showRendered && draft.subtitles && (draft.speaker_subtitles ? <SpeakerCaptionPreview document={draft.speaker_subtitles} layout={draft.speaker_subtitle_layout} colors={draft.speaker_colors !== false} style={draft.subtitle_style || 'clean'} width={captionSize.width} height={captionSize.height} time={currentTime} sceneStart={scene?.start || 0} sceneEnd={scene?.end || draft.speaker_subtitles.duration_ms / 1000} editing={captionStyleEditing} onPosition={value => patch({ speaker_subtitle_layout: { ...(draft.speaker_subtitle_layout || {font_scale:1,x:.5,y:.91}), ...value } })}/>
@@ -252,6 +266,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
           {!showRendered && selected===0 && draft.hook && artworkStyle && <TitleArtwork projectId={projectId} draft={draft}/>}
         </div>
         <PlayerBar offset={Math.max(0, Math.min(currentTime - playBase, playLength))} length={playLength} playing={playing} muted={muted}
+          rate={playbackRate} onRate={rate=>{setPlaybackRate(rate);if(video.current)video.current.playbackRate=rate}}
           onToggle={togglePlay} onMute={() => setMuted(m => !m)}
           onSeek={offset => { stopAudition(); const v = video.current; if (!v) return; v.currentTime = playBase + offset; setCurrentTime(v.currentTime) }} />
       </div><div className="studio-row studio-preview-foot"><span className="studio-muted">{showRendered?t("实际渲染结果"):t("原片预览 · 成片取 {{range}} · 字幕、翻译以渲染结果为准", { range: scene ? `${fmtDuration(scene.start)}–${fmtDuration(scene.end)}` : "" })}</span>{previewUrl ? <Btn size="sm" onClick={() => { stopAudition(); setShowRendered(!showRendered) }}>{showRendered?t("查看原片"):t("播放成片")}</Btn> : <Btn size="sm" disabled={!!active} onClick={render}>{active?t("正在渲染"):t("渲染预览")}</Btn>}</div></div>

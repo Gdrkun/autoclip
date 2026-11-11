@@ -62,3 +62,13 @@ test('POST failures never retry a mutation', async () => {
   assert.equal(attempts, 1)
   assert.deepEqual(delays, [])
 })
+
+test('explicit cancellation is not retried or classified as a network failure', async () => {
+  const { api, delays, errors } = loadApi()
+  let attempts = 0
+  api.defaults.adapter = async config => { attempts++; throw new axios.CanceledError('user cancelled', config) }
+  await assert.rejects(api.get('/studio/readiness'), error => error.code === 'ERR_CANCELED')
+  assert.equal(attempts, 1)
+  assert.deepEqual(delays, [])
+  assert.equal(errors.length, 0)
+})

@@ -8,14 +8,16 @@ const root=path.resolve(__dirname,'../src/features/studio')
 function history(i18n){
  const exports={}
  const mocks={
+  react:React,
   'react/jsx-runtime':require('react/jsx-runtime'),
   'react-i18next':{useTranslation:()=>({t:s=>i18n.t(s)})},
   '../../i18n':{t:s=>i18n.t(s),getLocale:()=>i18n.language},
   '../../ui':{Dialog:p=>React.createElement('section',null,p.children),ProgressLine:()=>null},
   'react-router-dom':{Link:p=>React.createElement('a',null,p.children)},
   './StudioDownloadLink':{default:()=>null},
+  './BatchExportDownload':{default:()=>null},
  }
- vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'ExportHistory.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:id=>{assert.ok(mocks[id],id);return mocks[id]}})
+ vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(root,'ExportHistory.tsx'),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText,{exports,require:id=>{assert.ok(mocks[id],id);return mocks[id]}})
  return exports.default
 }
 test('export history renders localized server warnings/restart errors in all eight languages, retaining source titles and unknown errors',async()=>{

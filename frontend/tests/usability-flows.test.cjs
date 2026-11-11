@@ -42,6 +42,7 @@ test('returning to import restores the URL, platforms and preferences without st
     './TemplatePicker': { default: 'templates' }, './editingStyleSession': {},
     './importReadiness': { visibleIssues: () => [] },
     './importDraft': { loadImportDraft: () => restored, saveImportDraft() {}, clearImportDraft() {} },
+    './uploadProgress': {},'./ProductionPresets':{default:'presets'},
   }).default
   const tree = nodes(component({ onImported: async () => {} }))
   assert.equal(tree.find(n => n.type === 'textarea').props.value, restored.url)
@@ -52,7 +53,7 @@ test('returning to import restores the URL, platforms and preferences without st
 test('returning from the editor retains the project candidate selection', () => {
   const state = hooks(), workspace = { drafts: [], jobs: [], events: [], output_variants: [{ id: 'v', status: 'on_demand' }], generation: { auto_start: true, status: 'awaiting_selection' } }
   const component = load('features/studio/StudioResults.tsx', { ...base, react: state.react,
-    ...featureMocks(['SelectionFeedback', 'ExportHistory', 'DraftResultCard', 'OutputVariantCard', 'PlatformPicker']),
+    ...featureMocks(['SelectionFeedback', 'ExportHistory', 'DraftResultCard', 'OutputVariantCard', 'PlatformPicker','TaskProgress','BatchExportDownload']),
     './CharacterBackground': { BackgroundResearchSummary: 'background' }, './SingingOptions': { SingingSummary: 'singing' },
     './useWorkspace': { useWorkspace: () => ({ workspace, loaded: true, refresh() {} }) }, './api': { studioApi: { source: () => '' } },
     './platformLabel': { platformLabel: String }, './candidateSelection': { readCandidateSelection: () => ['v'], writeCandidateSelection() {} },
@@ -71,6 +72,7 @@ test('a failed project refresh retains existing projects and exposes a persisten
     '../services/api': { projectApi: { getProjects: async () => { throw new Error('offline') } } }, '../analytics/experience': {}, '../analytics/observer': {}, '../ui': ui,
     '../stores/useSimpleProgressStore': { useSimpleProgressStore: { getState: () => ({ stopPolling() {}, clearAllProgress() {} }) } },
     '../store/useProjectStore': { useProjectStore: store }, '../hooks/useProjectPolling': { useProjectPolling() {} },
+    '../features/studio/projectLibrary':{filterProjects:projects=>projects},'../features/studio/recentWork':{readRecentWork:()=>null},'../features/studio/api':{},
   }, { setTimeout: fn => { state.timers.push(fn); return 1 }, clearTimeout() {} }).default
   component(); state.finish(); state.effects.forEach(fn => fn()); state.timers.forEach(fn => fn())
   await new Promise(resolve => setImmediate(resolve))
@@ -91,6 +93,7 @@ function editor() {
     './useWorkspace': { useWorkspace: () => ({ workspace: { drafts: [doc], jobs: [] }, refresh() {} }) },
     './types': { draftDuration: () => 10, draftError: () => null, frameModeAt: () => '', cropAt: () => .5, languages: [] },
     './titlePresets': { isArtworkStyle: () => false, titlePresets: [] }, './draftExportState': { draftExportState: () => ({}) }, './draftEditUndo': copyTools,
+    './recentWork':{},
   }).default
   const render = () => { state.reset(); const wrapper = component(); return nodes(wrapper.type(wrapper.props)) }
   const changeCaptions = text => render().find(n => n.type === 'SpeakerSubtitles').props.onChange({ ...doc.speaker_subtitles, subtitles: [{ id: 'a', text }] })

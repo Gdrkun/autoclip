@@ -118,6 +118,7 @@ function render(options = {}) {
     './StyleProbeLine': { default: 'style-probe' },
     './editingStyleSession': { readStyle: () => ({ key: '', status: 'idle', result: null, latencyMs: 0 }) },
     './importDraft': { loadImportDraft: () => null, saveImportDraft() {}, clearImportDraft() {} },
+    './uploadProgress': {uploadProgress:()=>({bytes:0,percent:0,transferred:false})}, './ProductionPresets':{default:'presets'},
     '../../analytics/experience': { trackExperience() {} },
     './types': { defaultImportOptions: { goal: 'auto', language: 'source', aspect: null, duration: null, instruction: '' } },
     './ImportPreferences': { default: 'preferences' }, './CreatorLibrary': {default:'creator-library'}, './SingingOptions': {default:'singing-options'}, './ReactionOptions': {default:'reaction-options'}, './SelectionPreferences': { default: 'selection-preferences' },
@@ -129,7 +130,7 @@ function render(options = {}) {
     './studio.css': {},
     './quick-output.css': {},
   }
-  vm.runInNewContext(code, { FormData: FormDataMock, exports, require: id => { assert.ok(id in mocks, id); return mocks[id] } })
+  vm.runInNewContext(code, { AbortController, FormData: FormDataMock, exports, require: id => { assert.ok(id in mocks, id); return mocks[id] } })
   const tree = nodes(exports.default({ onImported: async () => {}, blocked: !!options.blocked, onBlocked: () => blocked.push('setup') }))
   return { tree, calls, navigations, installs, blocked }
 }

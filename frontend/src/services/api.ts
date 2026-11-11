@@ -143,6 +143,7 @@ api.interceptors.response.use(
     return response.data
   },
   async (error) => {
+    if (error.code === 'ERR_CANCELED') return Promise.reject(error)
     if (shouldRetry(error)) {
       const currentRetryCount = error.config?.metadata?.retryCount || 0
       if (currentRetryCount < MAX_RETRIES) {

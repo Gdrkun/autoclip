@@ -20,6 +20,7 @@ import { useAppUpdate } from '../desktop/UpdatePrompt'
 import { FEEDBACK_DISCUSSIONS_URL, FEEDBACK_ISSUES_URL } from '../analytics/feedback'
 import { useTheme } from '../context/ThemeContext'
 import { loadImportDraft } from '../features/studio/importDraft'
+import ReadingComfortSetting from '../features/settings/ReadingComfortSetting'
 import { Btn, Icon, Row, Section, Segmented } from '../ui'
 import FlagOverrides, { flagOverridesVisible } from '../features/settings/FlagOverrides'
 
@@ -220,6 +221,7 @@ const AppSection: React.FC<{ analyticsOn: boolean; onAnalyticsChange: (on: boole
         <Row label={t("外观")} hint={t("首次启动跟随系统。")}>
           <Segmented size="sm" ariaLabel={t("外观")} value={theme} onChange={setTheme} options={[{ value: 'light', label: t("浅色") }, { value: 'dark', label: t("深色") }]} />
         </Row>
+        <ReadingComfortSetting />
         <Row label={t("开机自动启动")} hint={t("启用后随系统启动，可从托盘打开。仅桌面应用可用。")}>
           <Switch checked={autostart} onChange={toggleAutostart} loading={busy} disabled={!desktop} />
         </Row>

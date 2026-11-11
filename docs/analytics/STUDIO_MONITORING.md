@@ -32,6 +32,8 @@
 
 `*` 表示 requested / accepted / request_failed。同步保存/改写/测试的 accepted 表示接口成功返回；导入/确认/导出的 accepted 只表示后台受理。`social_publish_finished` 每个网关在当前发布页面的观察期只报一次；关页后不做后台补报，排期之后是否真的发出需看平台记录。
 
+用户在文件上传完成前取消时，发出 `studio_import_cancelled`，不会同时计入 `studio_import_request_failed`。它仅含原有白名单与随机 operation_id，不发送文件名或链接。导入漏斗按 operation_id 去重，取消单列并从有效尝试分母扣除；查询模板见 `studio_import_funnel.sql`。离开页面前已经受理的后台项目不按取消上传处理。此处为源码合同，线上看板需按实际部署版本另行核验。
+
 页面路由仅发送 `/import/:id`、`/project/:id/studio/:draftId`、`/project/:id/publish/:clipId` 等固定模板。所有 Studio 属性通过枚举/数字/布尔白名单。项目、草稿、计划、作业 ID 留在本地；终态 `$insert_id` 是独立随机观察 token，保持重启去重，不能关联内部 ID，也不能用于跨阶段精确任务漏斗。同一不可变导出作业重复受理不重复计终态。
 
 制作 `result_count` 仅为本次内容片段/草稿产出数，不是历史草稿数或已渲染文件数。`duration_ms` 为后台执行耗时，不含排队；请求事件另用 `request_duration_ms`。部分失败保留原有后端 `status=failed`，新增 `outcome=partial`，避免改变产品恢复流程。

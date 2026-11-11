@@ -10,7 +10,7 @@ const text = (value: unknown, limit = 1000) => typeof value === 'string' ? value
 function choice<T>(value: unknown, allowed: readonly T[], fallback: T): T {
   return allowed.includes(value as T) ? value as T : fallback
 }
-function options(value: Partial<ImportOptions> = {}): ImportOptions {
+export function normalizeImportOptions(value: Partial<ImportOptions> = {}): ImportOptions {
   return {
     goal: choice(value.goal, ['auto', 'content', 'highlight', 'promo'], 'auto'),
     language: choice(value.language, ['source', 'zh', 'en', 'ja'], 'source'),
@@ -32,7 +32,7 @@ export function loadImportDraft(): ImportDraft | null {
     const value = JSON.parse(sessionStorage.getItem(key) || 'null')
     if (!value || value.version !== 1 || !value.options || typeof value.options !== 'object') return null
     const platforms = Array.isArray(value.platforms) ? value.platforms.filter((id: unknown) => typeof id === 'string' && /^[a-z_]{1,40}$/.test(id)) : []
-    current = { source: value.source === 'file' ? 'file' : 'link', url: text(value.url, 10000), options: options(value.options),
+    current = { source: value.source === 'file' ? 'file' : 'link', url: text(value.url, 10000), options: normalizeImportOptions(value.options),
       browser: choice(value.browser, ['', 'chrome', 'edge', 'safari', 'firefox'], ''), platforms: platforms.length ? [...new Set<string>(platforms)] : ['douyin'],
       file: null, subtitle: null, fileName: text(value.fileName, 255), subtitleName: text(value.subtitleName, 255) }
     return current
@@ -42,7 +42,7 @@ export function loadImportDraft(): ImportDraft | null {
 export function saveImportDraft(value: ImportDraft) {
   const meaningful = value.url.trim() || value.fileName || value.subtitleName || value.source !== 'link'
     || value.browser || JSON.stringify(value.platforms) !== '["douyin"]'
-    || JSON.stringify(options(value.options)) !== JSON.stringify(options(defaultImportOptions))
+    || JSON.stringify(normalizeImportOptions(value.options)) !== JSON.stringify(normalizeImportOptions(defaultImportOptions))
   if (!meaningful) { clearImportDraft(); return }
   current = value
   const { file, subtitle, ...fields } = value

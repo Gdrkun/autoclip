@@ -148,7 +148,7 @@ test('the real editor blocks save, export and new-version creation while caption
   '../../ui':{Btn:'button',Dialog:'dialog',Row:'row',fmtDuration:String},'./api':{studioApi:api,errorText:String},
   './useWorkspace':{useWorkspace:()=>({workspace:{drafts:[doc],jobs:[]},refresh(){}})},
   './types':{draftDuration:()=>2,draftError:()=>null,frameModeAt:()=>'',cropAt:()=>.5,languages:[]},
-  './titlePresets':{isArtworkStyle:()=>false,titlePresets:[]},'./draftExportState':{draftExportState:()=>({})},'./draftEditUndo':{},'./studio.css':{}}
+  './titlePresets':{isArtworkStyle:()=>false,titlePresets:[]},'./draftExportState':{draftExportState:()=>({})},'./draftEditUndo':{},'./recentWork':{},'./studio.css':{}}
  for(const name of ['StudioDownloadLink','PlayerBar','CandidatePicker','TitleArtwork','DraftVariantDialog','DraftSettingsPanel','SpeakerSubtitles','SpeakerCaptionPreview','CaptionMaskPreview','KnowledgeContext','ReactionEvidence'])mocks['./'+name]={default:name}
  const Wrapper=load('StudioEditor.tsx',mocks).default
  const render=()=>{index=0;const wrapper=Wrapper();return nodes(wrapper.type(wrapper.props))}

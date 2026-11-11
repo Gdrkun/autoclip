@@ -97,6 +97,46 @@
 .studio-editor-page .studio-edit-panel { margin-top:22px; }
 .studio-timings { margin:12px 0 20px; padding:12px 16px; border:1px solid var(--ac-line); border-radius:12px; font-size:12px; }
 .studio-timings summary { cursor:pointer; color:var(--ac-sub); }
+.studio-onboarding { display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;border:1px solid var(--ac-line);background:var(--ac-card);border-radius:14px;padding:18px;margin-bottom:20px; }
+.studio-project-tools { gap:10px;flex-wrap:wrap;justify-content:flex-end;max-width:100%; }
+.studio-project-tools .ac-input { width:180px;min-width:0; }
+.studio-preset-tools { border-top:1px solid var(--ac-line);border-bottom:1px solid var(--ac-line);padding:12px 0;margin:16px 0; }
+.studio-preset-tools summary,.subtitle-shortcuts summary,.subtitle-repair-tools summary { cursor:pointer;color:var(--ac-sub);font-size:13px;padding:8px 0; }
+.studio-preset-tools .studio-actions { margin-top:10px; }
+.studio-preset-tools .ac-input { max-width:280px;flex:1 1 160px; }
+.studio-player-controls { width:100%;max-width:560px; }
+.studio-player-extras { display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px;color:var(--ac-sub);font-size:12px; }
+.studio-player-extras label { display:flex;align-items:center;gap:6px; }
+.studio-player-extras select { background:var(--ac-card);color:var(--ac-ink);border:1px solid var(--ac-line);border-radius:7px;padding:5px; }
+.studio-player-jump { background:var(--ac-card);color:var(--ac-ink);border:1px solid var(--ac-line);border-radius:8px;padding:6px 9px;cursor:pointer;min-height:32px; }
+.studio-task-progress { border:1px solid var(--ac-line);border-radius:12px;padding:14px 16px;margin:16px 0; }
+.studio-task-progress ol { display:flex;flex-wrap:wrap;gap:10px 18px;list-style:none;padding:0;margin:0 0 10px;font-size:13px;color:var(--ac-sub); }
+.studio-task-progress li[aria-current] { color:var(--ac-accent);font-weight:600; }
+.studio-task-progress p { margin:6px 0;font-size:14px; }
+.studio-batch-download { border:1px solid var(--ac-line);border-radius:12px;padding:12px;margin:12px 0; }
+.studio-batch-download p { margin:8px 0;font-size:13px; }
+.studio-history-filters { align-items:stretch; }
+.studio-history-filters .ac-input { flex:1 1 180px;min-width:0; }
+.studio-history-group { border-top:1px solid var(--ac-line);padding-top:14px;margin-top:18px; }
+.studio-history-group h4 { font-size:14px;margin:0; }
+.speaker-transport-tools { position:sticky;top:72px;z-index:12;background:var(--ac-card);padding:10px 0;border-bottom:1px solid var(--ac-line);margin-bottom:12px; }
+.subtitle-shortcuts { margin-bottom:10px; }
+.subtitle-shortcuts p { font-size:13px;line-height:1.7;color:var(--ac-sub); }
+@media(max-width:650px) {
+  .ac-section-head { flex-wrap:wrap;align-items:flex-start; }
+  .studio-project-tools { justify-content:flex-start; }
+  .studio-project-tools .ac-input { flex:1 1 150px; }
+  .studio-editor-page .studio-editor-main { display:block; }
+  .studio-editor-page .studio-editor-main > .studio-editor-sticky { position:sticky;top:64px;z-index:15;background:var(--ac-bg);padding-bottom:8px; }
+  .studio-editor-page .studio-stage { min-height:0;padding:10px;gap:8px; }
+  .studio-editor-page .studio-editor-main .studio-video-frame { max-height:18dvh; }
+  .studio-editor-page .studio-editor-main .studio-video-frame video { min-height:0;max-height:18dvh;object-fit:contain; }
+  .studio-editor-page .studio-editor-main .studio-stage--portrait .studio-video-frame { height:18dvh; }
+  .studio-editor-page .studio-preview-foot .studio-muted { font-size:11px;line-height:1.3; }
+  .speaker-transport-tools { position:static; }
+  .studio-editor-head { gap:12px; }
+  .studio-editor-head .studio-actions { gap:6px; }
+}
 .studio-import-recovery { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:12px 0; padding:12px 14px; border:1px solid var(--ac-line); border-radius:12px; background:var(--ac-bg); color:var(--ac-sub); font-size:13px; line-height:1.6; }
 .studio-timings dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px 18px; margin-bottom:0; }
 .studio-timings dl > div { display:flex; justify-content:space-between; gap:8px; }

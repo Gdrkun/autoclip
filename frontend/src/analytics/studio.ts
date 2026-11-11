@@ -20,7 +20,8 @@ export async function observeStudioOperation<T>(
     }
     return result
   } catch (error) {
-    if (enabled && workflow.active(generation)) captureBusinessEvent(`${name}_request_failed`, {
+    const cancelled = name === 'studio_import' && (error as {code?:string})?.code === 'ERR_CANCELED'
+    if (enabled && workflow.active(generation)) captureBusinessEvent(cancelled ? 'studio_import_cancelled' : `${name}_request_failed`, {
       ...props, error_code: errorCode(error), request_duration_ms: Date.now() - started,
     })
     throw error

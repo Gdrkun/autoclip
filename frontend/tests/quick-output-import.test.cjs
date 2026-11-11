@@ -12,7 +12,7 @@ function loadReadiness(){
 function load(mocks){
  const exports={}
  const source=fs.readFileSync(path.join(__dirname,'../src/features/studio/CreativeImport.tsx'),'utf8')
- vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020}}).outputText,{FormData:FormDataMock,exports,require:id=>{assert.ok(id in mocks,id);return mocks[id]}})
+ vm.runInNewContext(ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX,target:ts.ScriptTarget.ES2020}}).outputText,{AbortController,FormData:FormDataMock,exports,require:id=>{assert.ok(id in mocks,id);return mocks[id]}})
  return exports.default
 }
 function nodes(value){return !value||typeof value!=='object'?[]:Array.isArray(value)?value.flatMap(nodes):[value,...nodes(value.props?.children)]}
@@ -32,6 +32,7 @@ for (const sourceKind of ['link', 'file']) test(`quick ${sourceKind} import subm
   './StyleProbeLine':{default:'style-probe'},
   './editingStyleSession':{readStyle:()=>({key:'',status:'idle',result:null,latencyMs:0})},
   './importDraft':{loadImportDraft:()=>null,saveImportDraft(){},clearImportDraft(){}},
+  './uploadProgress':{uploadProgress:()=>({bytes:0,percent:0,transferred:false})},'./ProductionPresets':{default:'presets'},
   './types':{defaultImportOptions:{goal:'auto',language:'source',aspect:null,duration:null,instruction:''}},
   './ImportPreferences':{default:'preferences'}, './CreatorLibrary':{default:'creator-library'}, './SingingOptions':{default:'singing-options'}, './ReactionOptions':{default:'reaction-options'}, './SelectionPreferences': { default: 'selection-preferences' },'../../services/api':{speechApi:{installRuntime:async()=>({started:true,message:''})}},
   './importReadiness':loadReadiness(),'./studio.css':{},'./quick-output.css':{},

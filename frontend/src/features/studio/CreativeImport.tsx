@@ -13,6 +13,8 @@ import TemplatePicker, { templateImportFields, type HtmlTemplateChoice } from '.
 import StyleProbeLine from './StyleProbeLine'
 import { readStyle } from './editingStyleSession'
 import { loadImportDraft, saveImportDraft, clearImportDraft } from './importDraft'
+import { uploadProgress } from './uploadProgress'
+import ProductionPresets from './ProductionPresets'
 import { defaultImportOptions, ImportOptions } from './types'
 import ImportPreferences from './ImportPreferences'
 import SelectionPreferences from './SelectionPreferences'
@@ -69,6 +71,10 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
   const [restoredNotice, setRestoredNotice] = useState(!!restored)
   const [missingFile, setMissingFile] = useState(restored?.file ? '' : restored?.fileName || '')
   const [missingSubtitle, setMissingSubtitle] = useState(restored?.subtitle ? '' : restored?.subtitleName || '')
+  const [transfer,setTransfer]=useState<{bytes:number;percent:number|null;transferred:boolean}|null>(null)
+  const [uploadNotice,setUploadNotice]=useState('')
+  const uploadController=useRef<AbortController|null>(null)
+  const uploaded=useRef(false)
   const submitted = useRef(false)
   useEffect(() => {
     if (!submitted.current) saveImportDraft({ source, url, options, browser, platforms, file, subtitle,
@@ -139,7 +145,9 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
     if (reason === 'transcription') { setError(t('还没有可用的转写。可以附上 SRT 字幕，或先准备好转写。')); return }
     if (reason === 'visual') { setError(t('请先配好画面分析模型，再生成成片。')); return }
     if (reason === 'ffmpeg') { setError(t('找不到 FFmpeg，无法生成成片。')); return }
-    setBusy(true); setError('')
+    setBusy(true); setError('');setUploadNotice('');setTransfer(source==='file'?uploadProgress(0,file?.size):null)
+    uploaded.current=false
+    const controller=new AbortController();uploadController.current=controller
     try {
       const body = new FormData()
       body.append('goal', options.goal); body.append('language', options.language); body.append('instruction', options.instruction)
@@ -167,14 +175,14 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       body.append('name', file && source === 'file' ? file.name.replace(/\.[^.]+$/, '') : t("智能剪辑"))
       if (source === 'file' && file) body.append('video', file)
       else { body.append('url', url.trim()); if (browser) body.append('browser', browser) }
-      const result = await studioApi.import(body)
+      const result = await studioApi.import(body,{signal:controller.signal,onProgress:(loaded,total)=>{if(source!=='file')return;const progress=uploadProgress(loaded,total);uploaded.current=progress.transferred;setTransfer(progress)}})
       submitted.current = true
       clearImportDraft()
       trackQuickOutputPlatforms({ platform_count: platforms.length, portrait_style: options.portrait_style || 'auto' })
       // Project refresh should never make a successful import look like an upload failure.
       void onImported().catch(() => undefined)
       navigate(`/project/${result.project_id}`)
-    } catch (e) { setError(t(errorText(e))) } finally { setBusy(false) }
+    } catch (e) { if(controller.signal.aborted)setUploadNotice(t('上传已取消，导入草稿已保留。'));else setError(t(errorText(e))) } finally { setBusy(false);uploadController.current=null;setTransfer(null) }
   }
   return <section className="ac-creative-import">
     <h1 className="ac-title">{t("放入视频，直接生成可发布成片。")}</h1>
@@ -187,6 +195,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       {source==='link'?<label className="studio-field"><span className="studio-sr">{t("视频链接")}</span><textarea placeholder={t("粘贴 B 站或 YouTube 视频链接")} value={url} onChange={e=>setUrl(e.target.value)} disabled={busy}/></label>:<label className="studio-file"><span>{file?.name || t("选择一段视频")}</span><input type="file" aria-label={t("视频文件")} accept="video/mp4,video/webm,video/quicktime,video/x-flv,.mkv,.avi,.flv" disabled={busy} onChange={e=>{setFile(e.target.files?.[0] || null);setMissingFile('')}}/><small>MP4 / MOV / MKV / WEBM / AVI / FLV</small></label>}
       {templatesOn && visualOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <StyleProbeLine sourceKey={source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)} />}
       <PlatformPicker value={platforms} onChange={setPlatforms} disabled={busy}/>
+      <ProductionPresets options={options} platforms={platforms} disabled={busy} onApply={(next,targets)=>{setOptions(next);setPlatforms(targets)}}/>
       {templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <TemplatePicker visual={visualOn} disabled={busy} value={options.html_template} sourceKey={source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)} url={url} file={file} sourceKind={source === 'file' ? (file ? 'file' : 'none') : (url.trim() ? 'link' : 'none')} onChange={(html_template: HtmlTemplateChoice) => setOptions({...options, html_template})}/>}
       {!templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
       {templatesOn && options.html_template === 'classic' && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <div className="studio-field"><span>{t('竖版版式')}</span><Select aria-label={t('竖版版式')} disabled={busy} value={options.portrait_style || 'auto'} options={[{value:'auto',label:t('按平台默认')},{value:'interview',label:t('访谈式（人物窗口）')},{value:'podcast',label:t('播客式（满屏）')}]} onChange={portrait_style=>setOptions({...options,portrait_style})}/><small>{t('仅调整竖版布局，字幕与发布文案语言仍按平台。')}</small></div>}
@@ -200,7 +209,9 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
           {item.repair !== 'none' && <Btn size="sm" disabled={busy || repairing} loading={repairing && item.repair === 'install_whisper'} onClick={() => void repair(item)}>{repairLabel(item)}</Btn>}
         </div>)}
       </div>}
-      <div className="studio-row studio-import-bottom"><div><span className="studio-muted">{t('会按所选平台自动制作，数量由素材内容决定。')}</span><button className="studio-link studio-preferences-link" disabled={busy} onClick={()=>setPreferences(true)}>{t("高级偏好")}</button></div><Btn variant="cta" loading={busy} onClick={submit}>{busy?t("正在生成"):options.quick_preview?t("开始快速预选"):t("生成成片")}</Btn></div>
+      <div className="studio-row studio-import-bottom"><div><span className="studio-muted">{t('会按所选平台自动制作，数量由素材内容决定。')}</span><button className="studio-link studio-preferences-link" disabled={busy} onClick={()=>setPreferences(true)}>{t("高级偏好")}</button></div><Btn variant="cta" loading={busy} onClick={submit}>{busy?t(source==='file'&&!transfer?.transferred?'正在上传素材':'正在创建项目'):options.quick_preview?t("开始快速预选"):t("生成成片")}</Btn></div>
+      {busy&&transfer&&<div className="studio-import-recovery" role="status"><span>{transfer.transferred?t('上传完成，正在创建项目…'):transfer.percent===null?t('已上传 {{size}} MB',{size:(transfer.bytes/1048576).toFixed(1)}):t('上传进度 {{percent}}%',{percent:transfer.percent})}</span>{!transfer.transferred&&<Btn size="sm" onClick={()=>{if(!uploaded.current)uploadController.current?.abort()}}>{t('取消上传')}</Btn>}</div>}
+      {uploadNotice&&<p className="studio-muted" role="status">{uploadNotice}</p>}
       {error&&<p className="studio-error" role="alert">{error}</p>}
     </div>
     <Dialog open={preferences} onClose={()=>setPreferences(false)} title={t("制作偏好")} description={t("默认由 AI 匹配。你指定的选项优先，生成后也可以修改。")} footer={<div className="studio-actions"><Btn onClick={()=>{setOptions({...defaultImportOptions,instruction:options.instruction,background_query:options.background_query,detect_singing:options.detect_singing,visual_reactions:options.visual_reactions,reaction_budget:options.reaction_budget});setSubtitle(null);setMissingSubtitle('');setBrowser('')}}>{t("恢复自动")}</Btn><Btn variant="cta" onClick={()=>setPreferences(false)}>{t("完成")}</Btn></div>}>

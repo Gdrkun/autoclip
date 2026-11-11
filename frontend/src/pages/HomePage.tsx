@@ -21,6 +21,9 @@ import { Btn } from '../ui'
 import { useSimpleProgressStore } from '../stores/useSimpleProgressStore'
 import { Project, useProjectStore } from '../store/useProjectStore'
 import { useProjectPolling } from '../hooks/useProjectPolling'
+import { filterProjects } from '../features/studio/projectLibrary'
+import { readRecentWork, rememberRecentWork } from '../features/studio/recentWork'
+import { studioApi } from '../features/studio/api'
 
 const { Content } = Layout
 const { Title, Text } = Typography
@@ -36,6 +39,11 @@ const HomePage: React.FC = () => {
   const [setupRequest, setSetupRequest] = useState(0)
   const [exampleBusy, setExampleBusy] = useState(false)
   const [loadError, setLoadError] = useState(false)
+  const [query,setQuery]=useState('')
+  const [sort,setSort]=useState('updated')
+  const [resuming,setResuming]=useState(false)
+  const recent=readRecentWork()
+  const recentProject=projects.find(project=>project.id===recent?.projectId)
 
   // 使用项目轮询Hook
   useProjectPolling({
@@ -140,28 +148,28 @@ const HomePage: React.FC = () => {
     
     // 其他状态可以正常进入详情页
     navigate(`/project/${project.id}`)
+    rememberRecentWork({projectId:project.id})
+  }
+  const resume = async()=>{
+    if(!recent||!recentProject)return
+    setResuming(true)
+    try{const workspace=recent.draftId?await studioApi.get(recent.projectId):null
+      navigate(recent.draftId&&workspace?.drafts.some(draft=>draft.id===recent.draftId)?`/project/${recent.projectId}/studio/${recent.draftId}`:`/project/${recent.projectId}`)
+    }catch{navigate(`/project/${recent.projectId}`)}finally{setResuming(false)}
   }
 
   const pendingImports = projects.filter(p => p.settings?.import_staging || p.processing_config?.import_staging)
-  const filteredProjects = (projects || [])
-    .filter(p => !p.settings?.import_staging && !p.processing_config?.import_staging)
-    .filter(project => {
-      const matchesStatus = !statusFilter || statusFilter === 'all' || project.status === statusFilter || (statusFilter === 'error' && project.status === 'failed')
-      return matchesStatus
-    })
-    .sort((a, b) => {
-      // 按创建时间倒序排列，最新的在前面
-      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    })
+  const filteredProjects = filterProjects(projects,query,statusFilter,sort)
 
   return (
     <Layout style={{
       minHeight: '100vh',
       background: 'var(--ac-bg)'
     }}>
-      <Content style={{ padding: '40px 56px 56px', position: 'relative' }}>
+      <Content style={{ padding: '32px clamp(16px, 4vw, 56px) 56px', position: 'relative' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto', position: 'relative' }}>
-          <FirstRunSetup onStatus={setSetupNeeded} openRequest={setupRequest} />
+          <FirstRunSetup onStatus={setSetupNeeded} openRequest={setupRequest} onExample={()=>void openExample()} exampleBusy={exampleBusy}/>
+          {recentProject&&<div className="studio-import-recovery"><span>{recentProject.name}</span><Btn size="sm" loading={resuming} onClick={()=>void resume()}>{t('继续上次工作')}</Btn></div>}
           <CreativeImport onImported={loadProjects} blocked={setupNeeded === true} onBlocked={() => setSetupRequest(n => n + 1)} />
           {pendingImports.length>0&&<div className="studio-import-resume"><b>{t('未完成的导入')}</b>{pendingImports.map(p=><button key={p.id} className="studio-link" onClick={()=>navigate(`/import/${p.id}`)}>{p.name} · {t('继续导入确认')}</button>)}</div>}
 
@@ -190,10 +198,12 @@ const HomePage: React.FC = () => {
               </div>
               
               {/* 状态筛选移到右侧 */}
-              <div style={{ 
+              <div className="studio-project-tools" style={{
                 display: 'flex', 
                 alignItems: 'center'
               }}>
+                <input className="ac-input" type="search" aria-label={t('搜索项目名称')} placeholder={t('搜索项目名称')} value={query} onChange={event=>setQuery(event.target.value)}/>
+                <select className="ac-input" aria-label={t('项目排序')} value={sort} onChange={event=>setSort(event.target.value)}><option value="updated">{t('最近更新')}</option><option value="created">{t('创建时间')}</option><option value="name">{t('名称排序')}</option></select>
                 <Select
                   placeholder={t("全部状态")}
                   value={statusFilter}
@@ -236,12 +246,12 @@ const HomePage: React.FC = () => {
                      </div>
                    </div>
                  ) : (
-                   <div className="ac-empty"><b>{t("没有找到匹配的项目")}</b></div>
+                   <div className="ac-empty"><b>{t("没有找到匹配的项目")}</b><Btn size="sm" onClick={()=>{setQuery('');setStatusFilter('all')}}>{t('清除筛选')}</Btn></div>
                  )
                ) : (
                  <div style={{
                    display: 'grid',
-                   gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                   gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 300px), 1fr))',
                    gap: '24px',
                    justifyContent: 'start'
                  }}>

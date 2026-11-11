@@ -57,9 +57,9 @@ export const studioApi = {
   titleThumbnail: (style: string, version = 6) => `${api.defaults.baseURL}/studio/title-presets/${style}/thumbnail?v=${version}`,
   titlePreview: (pid: string, draft: Draft, signal?: AbortSignal, layer = 'artwork'): Promise<Blob> => api.post(`/studio/${pid}/title-preview?layer=${layer}`, draft, {responseType:'blob', signal}),
   candidates: (pid: string, signal?: AbortSignal): Promise<CandidateList> => api.get(`/studio/${pid}/candidates`, { signal }),
-  import: (body: FormData): Promise<{ project_id: string; analysis_run_id?: string }> => {
+  import: (body: FormData, transfer?: { signal?:AbortSignal; onProgress?:(loaded:number,total?:number)=>void }): Promise<{ project_id: string; analysis_run_id?: string }> => {
     const props = studioImportProperties(body)
-    return observeStudioOperation('studio_import', () => api.post('/studio/import', body, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 0 }), (result: { project_id: string; analysis_run_id?: string }, observed) => {
+    return observeStudioOperation('studio_import', () => api.post('/studio/import', body, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 0, signal:transfer?.signal, onUploadProgress:event=>transfer?.onProgress?.(event.loaded,event.total) }), (result: { project_id: string; analysis_run_id?: string }, observed) => {
       workflow.rememberProject(result.project_id, props)
       workflow.watch('studio-screen', result.project_id, undefined, undefined, observed, false, result.analysis_run_id)
       // Automatic output has no confirmation step: watch the generation itself to its terminal state.

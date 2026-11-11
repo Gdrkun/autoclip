@@ -14,6 +14,7 @@ import Header from './components/Header'
 import { UpdateProvider } from './desktop/UpdatePrompt'
 import { trackPageview } from './analytics/posthog'
 import { startWorkflowObserver } from './analytics/observer'
+import { readDisplayDensity, applyDisplayDensity } from './features/settings/displayDensity'
 
 const { Content } = Layout
 
@@ -29,6 +30,7 @@ function App() {
   console.log('🎬 App组件已加载');
   usePageviewTracking()
   useEffect(() => startWorkflowObserver(), [])
+  useEffect(() => { applyDisplayDensity(readDisplayDensity()) }, [])
 
   return (
     <UpdateProvider>

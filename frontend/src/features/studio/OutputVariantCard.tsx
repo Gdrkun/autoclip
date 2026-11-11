@@ -24,7 +24,7 @@ const framingHints: Record<NonNullable<OutputVariant['framing']>, string> = {
   full_frame_captions: '原片自带字幕，保留完整画面以免裁掉字幕',
 }
 
-export default function OutputVariantCard({ projectId, variant, draft, job, onRetry, onProduce, recommendation, selected, onSelect }: { projectId: string; variant: OutputVariant; draft?: Draft; job?: RenderJob; onRetry: () => void; onProduce: () => void; selected?: boolean; onSelect?: (checked: boolean) => void; recommendation?: { recommended_template?: VariantProperties['recommended_template']; accepted_recommendation?: boolean } }) {
+export default function OutputVariantCard({ projectId, variant, draft, job, onRetry, onProduce, recommendation, selected, onSelect, downloadSelected, onDownloadSelect }: { projectId: string; variant: OutputVariant; draft?: Draft; job?: RenderJob; onRetry: () => void; onProduce: () => void; selected?: boolean; onSelect?: (checked: boolean) => void;downloadSelected?:boolean;onDownloadSelect?:(checked:boolean)=>void; recommendation?: { recommended_template?: VariantProperties['recommended_template']; accepted_recommendation?: boolean } }) {
   const navigate = useNavigate()
   const [asking, setAsking] = useState(false)
   const [coverStamp, setCoverStamp] = useState(0)
@@ -56,6 +56,8 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
     <div className="ac-card-body">
       {onDemand && draft && <><Btn size="sm" aria-expanded={previewing} onClick={() => setPreviewing(value => !value)}>{t(previewing ? '收起候选预览' : '预览候选片段')}</Btn>{previewing && <CandidatePreview key={JSON.stringify(draft.scenes)} projectId={projectId} scenes={draft.scenes}/>}</>}
       {onSelect && <label className="speaker-check"><input type="checkbox" checked={!!selected} onChange={event=>onSelect(event.target.checked)}/>{t('选中此候选')}</label>}
+      {completed&&onDownloadSelect&&<label className="speaker-check"><input type="checkbox" checked={!!downloadSelected} onChange={event=>onDownloadSelect(event.target.checked)}/>{t('选择下载此成片')}</label>}
+      {completed&&draft&&job&&<p className="studio-output-hint" role="status">{t('成片版本 V{{revision}}',{revision:job.revision})} · {t(draft.revision===job.revision?'与当前草稿版本一致':'旧版成片，未包含最新草稿修改')}</p>}
       {!variant.post && <h2 className="ac-card-title">{draft?.title || t('正在准备成片')}</h2>}
       {variant.trimmed_to_sec && <p className="studio-output-hint">{t('平台上限 {{seconds}} 秒，已在句子结束处截断', { seconds: variant.trimmed_to_sec })}</p>}
       {packagingHint && <p className="studio-output-hint">{packagingHint}</p>}
