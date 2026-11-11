@@ -2182,5 +2182,20 @@
   "未识别到可用于预选的台词，请提供字幕或调整制作方式": "Aucun dialogue exploitable. Fournissez des sous-titres ou changez de mode",
   "自动对齐需要已准备的本地 Whisper，请先准备模型后重试": "Un modèle Whisper local prêt est nécessaire. Préparez-le avant de réessayer.",
   "自动对齐未完成，请缩短选区或逐句对齐；校正文字已保留": "Alignement non terminé. Réduisez la plage ou alignez par réplique ; le texte corrigé est conservé.",
-  "草稿在精修期间有新修改，请检查后重试；校对内容已保留": "Le brouillon a changé pendant la préparation. Vérifiez et réessayez ; les corrections sont conservées."
+  "草稿在精修期间有新修改，请检查后重试；校对内容已保留": "Le brouillon a changé pendant la préparation. Vérifiez et réessayez ; les corrections sont conservées.",
+  "返回并继续导入": "Revenir et continuer l’importation",
+  "已恢复未提交的导入，可继续填写或生成。": "L’importation en cours a été restaurée. Continuez la saisie ou lancez la génération.",
+  "清空导入草稿": "Effacer le brouillon d’importation",
+  "请重新选择视频文件：{{name}}": "Sélectionnez à nouveau la vidéo : {{name}}",
+  "请在高级偏好中重新选择字幕：{{name}}": "Sélectionnez à nouveau les sous-titres dans les préférences avancées : {{name}}",
+  "请重新选择字幕文件，或移除待恢复的字幕后继续。": "Sélectionnez à nouveau le fichier de sous-titres ou retirez les sous-titres en attente pour continuer.",
+  "项目列表加载失败，请检查本地服务后重试。": "Impossible de charger les projets. Vérifiez le service local puis réessayez.",
+  "正在显示上次加载的项目。": "Les projets précédemment chargés restent affichés.",
+  "撤销本次文案修改": "Annuler cette modification du texte",
+  "撤销本次镜头替换": "Annuler ce changement de scène",
+  "预览候选片段": "Prévisualiser le clip candidat",
+  "收起候选预览": "Fermer l’aperçu du candidat",
+  "原片候选预览": "Aperçu du fragment original",
+  "原片暂时无法播放，可进入编辑器生成兼容预览。": "La source ne peut pas être lue ici. Ouvrez l’éditeur pour créer un aperçu compatible.",
+  "原片片段预览，字幕与包装以生成结果为准。": "Aperçu du fragment original ; les sous-titres et l’habillage figurent dans le résultat généré."
 }

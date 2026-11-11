@@ -42,6 +42,12 @@
   font-weight: 500;
 }
 
+.studio-candidate-preview { margin:12px 0; }
+.studio-candidate-preview video { width:100%; max-height:240px; display:block; border-radius:10px; background:#19181a; cursor:pointer; }
+.studio-candidate-preview .studio-player-bar { box-sizing:border-box; margin-top:8px; gap:6px; }
+.studio-candidate-preview .studio-player-time { font-size:11px; }
+.studio-candidate-preview p { margin:8px 0 0; }
+
 .studio-platform-option span {
   color: var(--ac-sub);
   font-size: 11px;

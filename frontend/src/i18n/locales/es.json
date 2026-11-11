@@ -2182,5 +2182,20 @@
   "未识别到可用于预选的台词，请提供字幕或调整制作方式": "No hay diálogo útil. Añade subtítulos o cambia de modo",
   "自动对齐需要已准备的本地 Whisper，请先准备模型后重试": "Se necesita Whisper local preparado. Prepara el modelo antes de reintentar.",
   "自动对齐未完成，请缩短选区或逐句对齐；校正文字已保留": "La alineación no terminó. Acorta el rango o alinea por frase; se conserva el texto corregido.",
-  "草稿在精修期间有新修改，请检查后重试；校对内容已保留": "El borrador cambió durante el refinado. Revisa y reintenta; las correcciones se conservan."
+  "草稿在精修期间有新修改，请检查后重试；校对内容已保留": "El borrador cambió durante el refinado. Revisa y reintenta; las correcciones se conservan.",
+  "返回并继续导入": "Volver y continuar la importación",
+  "已恢复未提交的导入，可继续填写或生成。": "Se restauró la importación pendiente. Continúa editando o genera.",
+  "清空导入草稿": "Borrar borrador de importación",
+  "请重新选择视频文件：{{name}}": "Vuelve a seleccionar el video: {{name}}",
+  "请在高级偏好中重新选择字幕：{{name}}": "Vuelve a seleccionar los subtítulos en preferencias avanzadas: {{name}}",
+  "请重新选择字幕文件，或移除待恢复的字幕后继续。": "Selecciona de nuevo el archivo de subtítulos o quita los pendientes para continuar.",
+  "项目列表加载失败，请检查本地服务后重试。": "No se pudieron cargar los proyectos. Comprueba el servicio local y reintenta.",
+  "正在显示上次加载的项目。": "Se muestran los proyectos cargados anteriormente.",
+  "撤销本次文案修改": "Deshacer este cambio de texto",
+  "撤销本次镜头替换": "Deshacer este cambio de escena",
+  "预览候选片段": "Previsualizar clip candidato",
+  "收起候选预览": "Cerrar vista previa",
+  "原片候选预览": "Vista previa del fragmento original",
+  "原片暂时无法播放，可进入编辑器生成兼容预览。": "No se puede reproducir el original. Abre el editor para crear una vista previa compatible.",
+  "原片片段预览，字幕与包装以生成结果为准。": "Vista previa del original; los subtítulos y el diseño se verán en el resultado generado."
 }

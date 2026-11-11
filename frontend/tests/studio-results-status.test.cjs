@@ -27,6 +27,7 @@ function render(automatic, phase, status = 'running', buttons = [], calls = []) 
     if (name === './SingingOptions') return {SingingSummary:empty}
     if (name === './CharacterBackground') return { BackgroundResearchSummary: empty }
     if (name === './platformLabel') return { platformLabel: String }
+    if (name === './candidateSelection') return { readCandidateSelection: () => [], writeCandidateSelection() {} }
     return { default: empty }
   }
   const source = fs.readFileSync(path.join(__dirname, '../src/features/studio/StudioResults.tsx'), 'utf8')

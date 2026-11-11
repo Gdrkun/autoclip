@@ -23,7 +23,7 @@ for (const sourceKind of ['link', 'file']) test(`quick ${sourceKind} import subm
  const states=[[sourceKind,()=>{}],['https://youtube.com/watch?v=video',()=>{}],[sourceKind==='file'?{name:'recording.FLV',size:1024,lastModified:1}:null,()=>{}],[null,()=>{}],[{goal:'auto',language:'source',aspect:null,duration:null,instruction:'优先唱歌和搞笑互动',visual_reactions:true,reaction_budget:4},()=>{}],['',()=>{}],[['douyin'],()=>{}],[false,()=>{}],[false,()=>{}],['',()=>{}],[ready,()=>{}],[true,()=>{}],[false,()=>{}]]
  const component=load({
   'react-i18next':{useTranslation:()=>{}},'../../i18n':{t:x=>x},
-  react:{useState:()=>states[index++],useEffect:()=>{},useRef:current=>({current})},antd:{Select:'select'},'react-router-dom':{useNavigate:()=>path=>navigations.push(path)},
+  react:{useState:value=>states[index++]||[typeof value==='function'?value():value,()=>{}],useEffect:()=>{},useRef:current=>({current})},antd:{Select:'select'},'react-router-dom':{useNavigate:()=>path=>navigations.push(path)},
   'react/jsx-runtime':{jsx:(type,props)=>({type,props}),jsxs:(type,props)=>({type,props}),Fragment:'fragment'},
   '../../ui':{Btn:'button',Segmented:'segmented',Dialog:'dialog',StatusDot:'status'},'./PlatformPicker':{default:'platform-picker'},
   './api':{studioApi:{import:async body=>{calls.push(body);return {project_id:'project-1'}},readiness:async()=>ready},errorText:String},'../../analytics/studio':{trackQuickOutputPlatforms(){}},'../../analytics/experience':{trackExperience(){}},
@@ -31,6 +31,7 @@ for (const sourceKind of ['link', 'file']) test(`quick ${sourceKind} import subm
   './TemplatePicker':{default:'template-picker',templateImportFields:()=>({})},
   './StyleProbeLine':{default:'style-probe'},
   './editingStyleSession':{readStyle:()=>({key:'',status:'idle',result:null,latencyMs:0})},
+  './importDraft':{loadImportDraft:()=>null,saveImportDraft(){},clearImportDraft(){}},
   './types':{defaultImportOptions:{goal:'auto',language:'source',aspect:null,duration:null,instruction:''}},
   './ImportPreferences':{default:'preferences'}, './CreatorLibrary':{default:'creator-library'}, './SingingOptions':{default:'singing-options'}, './ReactionOptions':{default:'reaction-options'}, './SelectionPreferences': { default: 'selection-preferences' },'../../services/api':{speechApi:{installRuntime:async()=>({started:true,message:''})}},
   './importReadiness':loadReadiness(),'./studio.css':{},'./quick-output.css':{},

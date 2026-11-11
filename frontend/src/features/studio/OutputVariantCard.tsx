@@ -13,6 +13,8 @@ import { markRatingAsked, shouldAskRating } from './outputShare'
 import { platformLabel } from './platformLabel'
 import { packagingLabel, packagingFallbackHint } from './packagingLabel'
 import PublishKit from './PublishKit'
+import CandidatePreview from './CandidatePreview'
+import { rememberCandidateScroll } from './candidateSelection'
 import './quick-output.css'
 
 const framingHints: Record<NonNullable<OutputVariant['framing']>, string> = {
@@ -26,6 +28,7 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
   const navigate = useNavigate()
   const [asking, setAsking] = useState(false)
   const [coverStamp, setCoverStamp] = useState(0)
+  const [previewing, setPreviewing] = useState(false)
   const packaging = draft?.packaging
   const rendered = job?.result?.template_render?.template
   const template = rendered === 'editorial' || rendered === 'street' || rendered === 'classic' ? rendered : packaging?.template
@@ -51,6 +54,7 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
   return <article className="ac-card studio-output-card" aria-label={variant.post?.title || draft?.title || t('正在准备成片')}>
     <div className="studio-variant-thumb" title={productionDetails}>{completed && variant.render_job_id ? <video className="studio-variant-video" controls preload="metadata" poster={variant.cover ? studioApi.variantCover(projectId, variant.id, coverStamp) : undefined} src={studioApi.video(projectId, variant.render_job_id)}/> : <span className="play">▷</span>}<span className="ac-tag ac-tag--tl">{platformLabel(variant.strategy_id)}</span>{duration > 0 && <span className="ac-tag ac-tag--br">{fmtDuration(duration)}</span>}{!completed && <span className="ac-tag studio-output-progress" role="status">{failed ? t('生成失败') : onDemand ? t('备选片段 · 需要时再生成') : variant.status === 'preparing' ? t('正在准备取景与包装') : job?.status === 'running' ? t('正在生成') : t('排队生成中')}</span>}</div>
     <div className="ac-card-body">
+      {onDemand && draft && <><Btn size="sm" aria-expanded={previewing} onClick={() => setPreviewing(value => !value)}>{t(previewing ? '收起候选预览' : '预览候选片段')}</Btn>{previewing && <CandidatePreview key={JSON.stringify(draft.scenes)} projectId={projectId} scenes={draft.scenes}/>}</>}
       {onSelect && <label className="speaker-check"><input type="checkbox" checked={!!selected} onChange={event=>onSelect(event.target.checked)}/>{t('选中此候选')}</label>}
       {!variant.post && <h2 className="ac-card-title">{draft?.title || t('正在准备成片')}</h2>}
       {variant.trimmed_to_sec && <p className="studio-output-hint">{t('平台上限 {{seconds}} 秒，已在句子结束处截断', { seconds: variant.trimmed_to_sec })}</p>}
@@ -58,7 +62,7 @@ export default function OutputVariantCard({ projectId, variant, draft, job, onRe
       <PublishKit projectId={projectId} variant={variant} analytics={analytics} coverStamp={coverStamp} onCoverChanged={() => setCoverStamp(Date.now())} onCopied={() => trackOutputShare(projectId, { share_target: 'copy_caption', ...analytics })}/>
       {failed && <p className="studio-output-hint studio-error">{t(variant.error || job?.error || '这条版本未完成，其他成片不受影响。')}</p>}
       <div className="ac-card-foot"><div className="ac-card-actions">
-        {draft && <Btn variant="text" onClick={() => navigate(`/project/${projectId}/studio/${draft.id}`)}>{t('预览与修改')}</Btn>}
+        {draft && <Btn variant="text" onClick={() => { rememberCandidateScroll(projectId, window.scrollY); navigate(`/project/${projectId}/studio/${draft.id}`) }}>{t('预览与修改')}</Btn>}
         {failed && <Btn variant="text" onClick={onRetry}>{t('重试这条')}</Btn>}
         {onDemand && <Btn variant="text" onClick={onProduce}>{t('生成这条')}</Btn>}
         {completed && variant.render_job_id && <Btn variant="text" onClick={() => navigate(outputVariantPublishPath(projectId, variant))}>{t('发布')}</Btn>}

@@ -99,7 +99,7 @@ function render(options = {}) {
   const mocks = {
     'react-i18next': { useTranslation() {} },
     '../../i18n': { t: text => text },
-    react: { useState: () => states[index++], useEffect() {}, useRef: current => ({ current }) },
+    react: { useState: value => states[index++] || [typeof value === 'function' ? value() : value, () => {}], useEffect() {}, useRef: current => ({ current }) },
     antd: { Select: 'select' },
     'react-router-dom': { useNavigate: () => destination => navigations.push(destination) },
     'react/jsx-runtime': { jsx: (type, props) => ({ type, props }), jsxs: (type, props) => ({ type, props }), Fragment: 'fragment' },
@@ -117,6 +117,7 @@ function render(options = {}) {
     './TemplatePicker': { default: 'template-picker', templateImportFields: () => ({}) },
     './StyleProbeLine': { default: 'style-probe' },
     './editingStyleSession': { readStyle: () => ({ key: '', status: 'idle', result: null, latencyMs: 0 }) },
+    './importDraft': { loadImportDraft: () => null, saveImportDraft() {}, clearImportDraft() {} },
     '../../analytics/experience': { trackExperience() {} },
     './types': { defaultImportOptions: { goal: 'auto', language: 'source', aspect: null, duration: null, instruction: '' } },
     './ImportPreferences': { default: 'preferences' }, './CreatorLibrary': {default:'creator-library'}, './SingingOptions': {default:'singing-options'}, './ReactionOptions': {default:'reaction-options'}, './SelectionPreferences': { default: 'selection-preferences' },

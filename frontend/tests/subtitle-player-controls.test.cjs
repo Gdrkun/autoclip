@@ -12,7 +12,7 @@ function mount(){
   'react-router-dom':{useNavigate:()=>()=>{},useParams:()=>({id:'p',draftId:'d'})},'../../ui':{Btn:'button',Dialog:'dialog',Row:'row',fmtDuration:String},
   './api':{studioApi:{source:()=>'/fixture.mp4'},errorText:String},'./useWorkspace':{useWorkspace:()=>({workspace:{drafts:[doc],jobs:[]},refresh(){}})},
   './types':{draftDuration:()=>30,draftError:()=>null,frameModeAt:()=>'',cropAt:()=>.5,languages:[]},'./titlePresets':{isArtworkStyle:()=>false,titlePresets:[]},
-  './draftExportState':{draftExportState:()=>({})},'./studio.css':{}}
+  './draftExportState':{draftExportState:()=>({})},'./draftEditUndo':{},'./studio.css':{}}
  for(const name of ['StudioDownloadLink','PlayerBar','CandidatePicker','TitleArtwork','DraftVariantDialog','DraftSettingsPanel','SpeakerSubtitles','SpeakerCaptionPreview','CaptionMaskPreview','KnowledgeContext','ReactionEvidence'])mocks['./'+name]={default:name}
  const exports={}
  vm.runInNewContext(ts.transpileModule(fs.readFileSync(path.join(__dirname,'../src/features/studio/StudioEditor.tsx'),'utf8'),{

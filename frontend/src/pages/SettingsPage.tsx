@@ -19,6 +19,7 @@ import { getAppVersion } from '../desktop/updater'
 import { useAppUpdate } from '../desktop/UpdatePrompt'
 import { FEEDBACK_DISCUSSIONS_URL, FEEDBACK_ISSUES_URL } from '../analytics/feedback'
 import { useTheme } from '../context/ThemeContext'
+import { loadImportDraft } from '../features/studio/importDraft'
 import { Btn, Icon, Row, Section, Segmented } from '../ui'
 import FlagOverrides, { flagOverridesVisible } from '../features/settings/FlagOverrides'
 
@@ -42,6 +43,7 @@ const SECTION_ALIASES: Record<string, { section: SectionKey; anchor?: string }> 
 const SettingsPage: React.FC = () => {
   useTranslation()
   const location = useLocation()
+  const pendingImport = loadImportDraft()
   const navigate = useNavigate()
   const requested = new URLSearchParams(location.search).get('section') || ''
   const initialSection = useMemo<SectionKey>(() => (
@@ -65,6 +67,7 @@ const SettingsPage: React.FC = () => {
         <button className="ac-back" onClick={() => navigate('/')}>
           <Icon.Back />{t("项目")}</button>
         <h1 className="ac-title">{t("设置")}</h1>
+        {pendingImport && <p className="studio-muted"><button className="studio-link" onClick={() => navigate('/')}>{t('返回并继续导入')}</button></p>}
         <div className="ac-meta">
           <span className="ac-mono">{runtime.version !== 'unknown' ? `v${runtime.version}` : 'dev'}</span>
           <span className="dot" />

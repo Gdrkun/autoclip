@@ -35,11 +35,13 @@ const HomePage: React.FC = () => {
   const [setupNeeded, setSetupNeeded] = useState<boolean | null>(null)
   const [setupRequest, setSetupRequest] = useState(0)
   const [exampleBusy, setExampleBusy] = useState(false)
+  const [loadError, setLoadError] = useState(false)
 
   // 使用项目轮询Hook
   useProjectPolling({
     onProjectsUpdate: (updatedProjects) => {
       setProjects(updatedProjects || [])
+      setLoadError(false)
     },
     enabled: true,
     interval: 30000 // 30秒轮询一次，减少频繁请求
@@ -77,11 +79,11 @@ const HomePage: React.FC = () => {
       // 确保projects是数组类型
       const safeProjects = Array.isArray(projects) ? projects : []
       setProjects(safeProjects)
+      setLoadError(false)
     } catch (error) {
       message.error(t("加载项目失败"))
       console.error('Load projects error:', error)
-      // 如果API调用失败，设置空数组
-      setProjects([])
+      setLoadError(true)
     } finally {
       setLoading(false)
     }
@@ -211,7 +213,8 @@ const HomePage: React.FC = () => {
 
             {/* 项目列表内容 */}
              <div>
-               {loading ? (
+               {loadError && <div className="studio-import-recovery" role="alert"><span>{t('项目列表加载失败，请检查本地服务后重试。')}{projects.length > 0 && ` ${t('正在显示上次加载的项目。')}`}</span><Btn size="sm" loading={loading} onClick={() => void loadProjects()}>{t('重试')}</Btn></div>}
+               {loading && !projects.length ? (
                  <div style={{
                    textAlign: 'center',
                    padding: '72px 0',
@@ -222,7 +225,7 @@ const HomePage: React.FC = () => {
                    <Spin size="large" />
                    <div style={{ marginTop: '18px', color: 'var(--ac-muted)', fontSize: '14px' }}>{t("正在加载项目列表…")}</div>
                  </div>
-               ) : filteredProjects.length === 0 ? (
+               ) : loadError && !projects.length ? null : filteredProjects.length === 0 ? (
                  projects.length === 0 ? (
                    /* 空态按 DESIGN.md：一句话 + 一件可做的事。示例项目不需要 Key，先看效果再导入自己的视频。 */
                    <div className="ac-empty">

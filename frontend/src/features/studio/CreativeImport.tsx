@@ -12,6 +12,7 @@ import { featureSnapshot, useFlag } from '../../analytics/flags'
 import TemplatePicker, { templateImportFields, type HtmlTemplateChoice } from './TemplatePicker'
 import StyleProbeLine from './StyleProbeLine'
 import { readStyle } from './editingStyleSession'
+import { loadImportDraft, saveImportDraft, clearImportDraft } from './importDraft'
 import { defaultImportOptions, ImportOptions } from './types'
 import ImportPreferences from './ImportPreferences'
 import SelectionPreferences from './SelectionPreferences'
@@ -49,21 +50,34 @@ function repairLabel(item: ReadinessIssue) {
 export default function CreativeImport({ onImported, blocked = false, onBlocked }: { onImported: () => Promise<void>; blocked?: boolean; onBlocked?: () => void }) {
   useTranslation()
   const navigate = useNavigate()
-  const [source, setSource] = useState<'link' | 'file'>('link')
-  const [url, setUrl] = useState('')
-  const [file, setFile] = useState<File | null>(null)
-  const [subtitle, setSubtitle] = useState<File | null>(null)
-  const [options, setOptions] = useState<ImportOptions>({...defaultImportOptions})
+  const restored = loadImportDraft()
+  const [source, setSource] = useState<'link' | 'file'>(restored?.source || 'link')
+  const [url, setUrl] = useState(restored?.url || '')
+  const [file, setFile] = useState<File | null>(restored?.file || null)
+  const [subtitle, setSubtitle] = useState<File | null>(restored?.subtitle || null)
+  const [options, setOptions] = useState<ImportOptions>(restored?.options || {...defaultImportOptions})
   const templatesOn = useFlag('pkg_templates_v1') === true
   const visualOn = useFlag('pkg_template_picker_visual') === true
-  const [browser, setBrowser] = useState('')
-  const [platforms, setPlatforms] = useState<string[]>(['douyin'])
+  const [browser, setBrowser] = useState(restored?.browser || '')
+  const [platforms, setPlatforms] = useState<string[]>(restored?.platforms || ['douyin'])
   const [preferences, setPreferences] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [readiness, setReadiness] = useState<ImportReadiness | null>(null)
   const [settled, setSettled] = useState(false)
   const [repairing, setRepairing] = useState(false)
+  const [restoredNotice, setRestoredNotice] = useState(!!restored)
+  const [missingFile, setMissingFile] = useState(restored?.file ? '' : restored?.fileName || '')
+  const [missingSubtitle, setMissingSubtitle] = useState(restored?.subtitle ? '' : restored?.subtitleName || '')
+  const submitted = useRef(false)
+  useEffect(() => {
+    if (!submitted.current) saveImportDraft({ source, url, options, browser, platforms, file, subtitle,
+      fileName: file?.name || missingFile, subtitleName: subtitle?.name || missingSubtitle })
+  }, [source, url, options, browser, platforms, file, subtitle, missingFile, missingSubtitle])
+  const discardDraft = () => {
+    clearImportDraft(); setSource('link'); setUrl(''); setFile(null); setSubtitle(null); setBrowser('')
+    setPlatforms(['douyin']); setOptions({...defaultImportOptions}); setMissingFile(''); setMissingSubtitle(''); setRestoredNotice(false)
+  }
   // Installing the runtime is only half of local transcription: download the model right after.
   const modelAfterRuntime = useRef(false)
   useEffect(() => {
@@ -118,6 +132,7 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
   const submit = async () => {
     if (blocked) { trackExperience('import_blocked', { reason: 'setup_required', placement: 'home_setup' }); setError(t("请先连接 AI 服务，再导入视频。")); onBlocked?.(); return }
     if (source === 'file' ? !file : !url.trim()) { setError(t("请先添加视频文件或链接")); return }
+    if (missingSubtitle && !subtitle) { setError(t('请重新选择字幕文件，或移除待恢复的字幕后继续。')); return }
     const reason = submissionBlock(readiness, !!subtitle, settled)
     if (reason === 'pending') { setError(t('正在确认导入条件…')); return }
     if (reason === 'analysis') { setError(t('请先连接 AI 服务，再导入视频。')); return }
@@ -153,6 +168,8 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       if (source === 'file' && file) body.append('video', file)
       else { body.append('url', url.trim()); if (browser) body.append('browser', browser) }
       const result = await studioApi.import(body)
+      submitted.current = true
+      clearImportDraft()
       trackQuickOutputPlatforms({ platform_count: platforms.length, portrait_style: options.portrait_style || 'auto' })
       // Project refresh should never make a successful import look like an upload failure.
       void onImported().catch(() => undefined)
@@ -163,8 +180,11 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
     <h1 className="ac-title">{t("放入视频，直接生成可发布成片。")}</h1>
     <p className="studio-muted">{t("选择发布平台，AI 会自动挑选内容、完成剪辑与渲染。生成后可直接下载或继续编辑。")}</p>
     <div className="studio-import-box">
+      {restoredNotice && <div className="studio-import-recovery" role="status"><span>{t('已恢复未提交的导入，可继续填写或生成。')}</span><Btn size="sm" disabled={busy} onClick={discardDraft}>{t('清空导入草稿')}</Btn></div>}
+      {source === 'file' && missingFile && !file && <p className="studio-muted" role="status">{t('请重新选择视频文件：{{name}}', { name: missingFile })}</p>}
+      {missingSubtitle && !subtitle && <p className="studio-muted" role="status">{t('请在高级偏好中重新选择字幕：{{name}}', { name: missingSubtitle })}<button className="studio-link" disabled={busy} onClick={() => setMissingSubtitle('')}>{t('移除')}</button></p>}
       <div className="studio-row"><Segmented ariaLabel={t("导入来源")} value={source} onChange={v=>!busy&&setSource(v)} options={[{value:'link',label:t("链接导入")},{value:'file',label:t("文件导入")}]}/></div>
-      {source==='link'?<label className="studio-field"><span className="studio-sr">{t("视频链接")}</span><textarea placeholder={t("粘贴 B 站或 YouTube 视频链接")} value={url} onChange={e=>setUrl(e.target.value)} disabled={busy}/></label>:<label className="studio-file"><span>{file?.name || t("选择一段视频")}</span><input type="file" aria-label={t("视频文件")} accept="video/mp4,video/webm,video/quicktime,video/x-flv,.mkv,.avi,.flv" disabled={busy} onChange={e=>setFile(e.target.files?.[0] || null)}/><small>MP4 / MOV / MKV / WEBM / AVI / FLV</small></label>}
+      {source==='link'?<label className="studio-field"><span className="studio-sr">{t("视频链接")}</span><textarea placeholder={t("粘贴 B 站或 YouTube 视频链接")} value={url} onChange={e=>setUrl(e.target.value)} disabled={busy}/></label>:<label className="studio-file"><span>{file?.name || t("选择一段视频")}</span><input type="file" aria-label={t("视频文件")} accept="video/mp4,video/webm,video/quicktime,video/x-flv,.mkv,.avi,.flv" disabled={busy} onChange={e=>{setFile(e.target.files?.[0] || null);setMissingFile('')}}/><small>MP4 / MOV / MKV / WEBM / AVI / FLV</small></label>}
       {templatesOn && visualOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <StyleProbeLine sourceKey={source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)} />}
       <PlatformPicker value={platforms} onChange={setPlatforms} disabled={busy}/>
       {templatesOn && platforms.some(platform => !['bilibili', 'youtube_long', 'original'].includes(platform)) && <TemplatePicker visual={visualOn} disabled={busy} value={options.html_template} sourceKey={source === 'file' ? (file ? `file:${file.name}:${file.size}:${file.lastModified}` : null) : (url.trim() ? `url:${url.trim()}` : null)} url={url} file={file} sourceKind={source === 'file' ? (file ? 'file' : 'none') : (url.trim() ? 'link' : 'none')} onChange={(html_template: HtmlTemplateChoice) => setOptions({...options, html_template})}/>}
@@ -183,9 +203,9 @@ export default function CreativeImport({ onImported, blocked = false, onBlocked 
       <div className="studio-row studio-import-bottom"><div><span className="studio-muted">{t('会按所选平台自动制作，数量由素材内容决定。')}</span><button className="studio-link studio-preferences-link" disabled={busy} onClick={()=>setPreferences(true)}>{t("高级偏好")}</button></div><Btn variant="cta" loading={busy} onClick={submit}>{busy?t("正在生成"):options.quick_preview?t("开始快速预选"):t("生成成片")}</Btn></div>
       {error&&<p className="studio-error" role="alert">{error}</p>}
     </div>
-    <Dialog open={preferences} onClose={()=>setPreferences(false)} title={t("制作偏好")} description={t("默认由 AI 匹配。你指定的选项优先，生成后也可以修改。")} footer={<div className="studio-actions"><Btn onClick={()=>{setOptions({...defaultImportOptions,instruction:options.instruction,background_query:options.background_query,detect_singing:options.detect_singing,visual_reactions:options.visual_reactions,reaction_budget:options.reaction_budget});setSubtitle(null);setBrowser('')}}>{t("恢复自动")}</Btn><Btn variant="cta" onClick={()=>setPreferences(false)}>{t("完成")}</Btn></div>}>
+    <Dialog open={preferences} onClose={()=>setPreferences(false)} title={t("制作偏好")} description={t("默认由 AI 匹配。你指定的选项优先，生成后也可以修改。")} footer={<div className="studio-actions"><Btn onClick={()=>{setOptions({...defaultImportOptions,instruction:options.instruction,background_query:options.background_query,detect_singing:options.detect_singing,visual_reactions:options.visual_reactions,reaction_budget:options.reaction_budget});setSubtitle(null);setMissingSubtitle('');setBrowser('')}}>{t("恢复自动")}</Btn><Btn variant="cta" onClick={()=>setPreferences(false)}>{t("完成")}</Btn></div>}>
       <ImportPreferences value={options} onChange={setOptions}/>
-      <label className="studio-field">{t("已有字幕（选填）")}<input type="file" accept=".srt" aria-label={t("已有字幕")} onChange={e=>setSubtitle(e.target.files?.[0] || null)}/>{subtitle&&<small>{subtitle.name}<button className="studio-link" onClick={()=>setSubtitle(null)}>{t("移除")}</button></small>}</label>
+      <label className="studio-field">{t("已有字幕（选填）")}<input type="file" accept=".srt" aria-label={t("已有字幕")} onChange={e=>{setSubtitle(e.target.files?.[0] || null);setMissingSubtitle('')}}/>{subtitle&&<small>{subtitle.name}<button className="studio-link" onClick={()=>setSubtitle(null)}>{t("移除")}</button></small>}</label>
       {source==='link'&&<details className="studio-details"><summary>{t("下载遇到登录限制时")}</summary><label className="studio-field">{t("使用浏览器登录状态")}<select value={browser} onChange={e=>setBrowser(e.target.value)}><option value="">{t("不使用")}</option>{['chrome','edge','safari','firefox'].map(b=><option key={b}>{b}</option>)}</select></label><p className="studio-muted">{t("仅在下载需要登录时选择，不会自动读取浏览器 Cookie。")}</p></details>}
     </Dialog>
   </section>

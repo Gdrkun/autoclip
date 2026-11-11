@@ -97,6 +97,7 @@
 .studio-editor-page .studio-edit-panel { margin-top:22px; }
 .studio-timings { margin:12px 0 20px; padding:12px 16px; border:1px solid var(--ac-line); border-radius:12px; font-size:12px; }
 .studio-timings summary { cursor:pointer; color:var(--ac-sub); }
+.studio-import-recovery { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin:12px 0; padding:12px 14px; border:1px solid var(--ac-line); border-radius:12px; background:var(--ac-bg); color:var(--ac-sub); font-size:13px; line-height:1.6; }
 .studio-timings dl { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px 18px; margin-bottom:0; }
 .studio-timings dl > div { display:flex; justify-content:space-between; gap:8px; }
 .studio-timings dt { color:var(--ac-sub); }.studio-timings dd { margin:0; font-variant-numeric:tabular-nums; }

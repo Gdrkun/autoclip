@@ -19,6 +19,7 @@ import CaptionMaskPreview from './CaptionMaskPreview'
 import KnowledgeContext from './KnowledgeContext'
 import ReactionEvidence from './ReactionEvidence'
 import { draftExportState } from './draftExportState'
+import { copyFields, undoDraftEdit, type DraftEditUndo } from './draftEditUndo'
 import './studio.css'
 
 export default function StudioEditor() {
@@ -127,7 +128,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
   }
 
   const [suggestion, setSuggestion] = useState<Draft | null>(null)
-  const [undo, setUndo] = useState<Draft | null>(null)
+  const [undo, setUndo] = useState<DraftEditUndo | null>(null)
   const video = useRef<HTMLVideoElement>(null)
   const speakerSeek = useRef<number | null>(null)
   const localKey = `autoclip.studio.${projectId}.${draftId}`
@@ -257,7 +258,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       {!showRendered && draft.subtitles && draft.speaker_subtitles && workspace.generation?.source_has_burned_subtitles && !draft.caption_mask &&
         <p className="studio-muted" role="status">{t('原视频自带字幕，但未确定字幕区域，可能与说话人字幕重叠。')}</p>}
       <div className="studio-prompt"><input aria-label={t("文案修改要求")} placeholder={t("告诉 AI 怎么改文案，例如：开头改成一个简短的问题")} value={instruction} onChange={e=>setInstruction(e.target.value)} /><Btn variant="cta" loading={busy==='rewrite'} disabled={!instruction.trim()} onClick={rewrite}>{t("改一版文案")}</Btn></div>
-      {undo && <Btn variant="text" onClick={()=>{setDraft({...undo, revision:draft.revision});setUndo(null);setShowRendered(false)}}>{t("撤销上次修改")}</Btn>}
+      {undo && <Btn variant="text" onClick={()=>{setDraft(current=>current ? undoDraftEdit(current,undo) : current);setUndo(null);setShowRendered(false)}}>{t(undo.kind === 'copy' ? '撤销本次文案修改' : '撤销本次镜头替换')}</Btn>}
       <KnowledgeContext projectId={projectId}/>
       <ReactionEvidence key={`reactions:${projectId}:${draftId}`} projectId={projectId} scenes={draft.scenes} onSeek={(seconds,index)=>{
         stopAudition(); speakerSeek.current=seconds;setShowRendered(false)
@@ -309,7 +310,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
     {picker !== null && <CandidatePicker projectId={projectId} mode={picker === 'append' ? 'append' : 'replace'} onClose={() => setPicker(null)} onChoose={candidate => {
       try {
         const next = applyCandidate(draft, candidate, picker, crypto.randomUUID())
-        setUndo(draft); patch({ scenes: next.scenes }); setSelected(picker === 'append' ? draft.scenes.length : picker)
+        setUndo({kind:'scenes',before:draft.scenes,after:next.scenes}); patch({ scenes: next.scenes }); setSelected(picker === 'append' ? draft.scenes.length : picker)
         setPicker(null); setNotice("镜头已更新，请保存后重新渲染。换镜头后请核对开头文案是否仍符合画面。")
       } catch(e) { setPicker(null); setError(t(errorText(e))) }
     }} />}
@@ -317,7 +318,7 @@ function Editor({ projectId, draftId }: { projectId: string; draftId: string }) 
       try { localStorage.removeItem(recoveringCache ? `${localKey}.before-caption-recovery` : localKey) } catch { /* The new server draft is already durable. */ }
       navigate(`/project/${projectId}/studio/${created.id}`)
     }} />
-    <Dialog open={!!suggestion} onClose={()=>setSuggestion(null)} title={t("查看文案修改")} description={t("确认后应用到当前草稿，镜头与声音保持原设置。")} footer={<div className="studio-actions"><Btn onClick={()=>setSuggestion(null)}>{t("保留原稿")}</Btn><Btn variant="cta" onClick={()=>{setUndo(draft);setDraft(suggestion);setSuggestion(null);setShowRendered(false)}}>{t("应用修改")}</Btn></div>}><p>{suggestion?.title}</p><p>{suggestion?.hook || t("无开头文字")}</p></Dialog>
+    <Dialog open={!!suggestion} onClose={()=>setSuggestion(null)} title={t("查看文案修改")} description={t("确认后应用到当前草稿，镜头与声音保持原设置。")} footer={<div className="studio-actions"><Btn onClick={()=>setSuggestion(null)}>{t("保留原稿")}</Btn><Btn variant="cta" onClick={()=>{if(!suggestion)return;const after=copyFields(suggestion);setUndo({kind:'copy',before:copyFields(draft),after});setDraft(current=>current?{...current,...after}:current);setSuggestion(null);setShowRendered(false)}}>{t("应用修改")}</Btn></div>}><p>{suggestion?.title}</p><p>{suggestion?.hook || t("无开头文字")}</p></Dialog>
     <Dialog open={showExport} onClose={()=>!busy && setShowExport(false)} title={t("导出成片")} description={t("保存当前修改并渲染；已有输出会保留在导出记录。")} footer={<div className="studio-actions"><Btn disabled={!!busy} onClick={()=>setShowExport(false)}>{t("关闭")}</Btn>{previewUrl && <Btn onClick={()=>navigate(`/project/${projectId}/publish/studio-${currentJob!.job_id}`)}>{t("发布这版成片")}</Btn>}{previewUrl ? <StudioDownloadLink className="ac-btn ac-btn--cta" projectId={projectId} jobId={currentJob!.job_id}/> : <Btn variant="cta" loading={busy==='render'||!!active} disabled={!!active} onClick={render}>{t("确认导出")}</Btn>}</div>}>
       <Row label={t("成片")}>{draft.title}</Row><Row label={t("格式")}>MP4 · 30 fps</Row><Row label={t("画幅")}>{draft.aspect==='portrait'?'1080 × 1920':draft.aspect==='landscape'?'1920 × 1080':t("保持原尺寸")}</Row><Row label={t("文字语言")}>{draft.language==='source' ? t('原语言') : languages.find(l=>l.value===draft.language)?.label}</Row>
       <Row label={t("片头标题")}>{draft.hook ? t(titlePresets.find(preset=>preset.value===(draft.title_style||'plain'))?.label ?? '') : t("无开头文字")}</Row><Row label={t("原声")}>{draft.original_audio?t("保留"):t("已关闭")}</Row><Row label={t("字幕")}>{draft.subtitles?t("字幕压进画面"):t("已关闭")}</Row><Row label={t("封面")} hint={t("渲染完成后，在发布页按平台生成带标题的封面。")}>{previewUrl && currentJob && <Btn size="sm" variant="text" onClick={()=>navigate(`/project/${projectId}/publish/studio-${currentJob.job_id}`)}>{t("去生成")}</Btn>}</Row>
